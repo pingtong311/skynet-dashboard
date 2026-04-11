@@ -5,6 +5,10 @@ import { useState } from 'react';
 export default function StrategyPage() {
   const [minPrice, setMinPrice] = useState(2000);
   const [maxBias, setMaxBias] = useState(15);
+  const [takeProfit, setTakeProfit] = useState(100);
+  const [stopLoss, setStopLoss] = useState(20);
+  const [bbLength, setBbLength] = useState(20);
+  const [bbMult, setBbMult] = useState(2.0);
   const [strategy, setStrategy] = useState('skynet');
   const [isDeploying, setIsDeploying] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -17,6 +21,10 @@ export default function StrategyPage() {
     const payload = {
       priceThreshold: minPrice,
       maxBiasPercentage: maxBias,
+      takeProfitPercentage: takeProfit,
+      stopLossPercentage: stopLoss,
+      bbLength: bbLength,
+      bbMultiplier: bbMult,
       selectedStrategy: strategy,
       timestamp: new Date().toISOString()
     };
@@ -53,53 +61,102 @@ export default function StrategyPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          <div className="flex flex-col gap-4">
-            <h3 className="text-xl text-cyan">過濾器設定</h3>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm text-gray-300">最小價格門檻</label>
-              <input 
-                type="number" 
-                value={minPrice} 
-                onChange={(e) => setMinPrice(Number(e.target.value))}
-                className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-cyan" 
-              />
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
+              <h3 className="text-xl text-cyan">過濾器設定</h3>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm text-gray-300">最小價格門檻</label>
+                <input 
+                  type="number" 
+                  value={minPrice} 
+                  onChange={(e) => setMinPrice(Number(e.target.value))}
+                  className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-cyan transition-colors" 
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm text-gray-300">最大乖離率 (%)</label>
+                <input 
+                  type="number" 
+                  value={maxBias} 
+                  onChange={(e) => setMaxBias(Number(e.target.value))}
+                  className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-cyan transition-colors" 
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm text-gray-300">最大乖離率 (%)</label>
-              <input 
-                type="number" 
-                value={maxBias} 
-                onChange={(e) => setMaxBias(Number(e.target.value))}
-                className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-cyan" 
-              />
+
+            <div className="flex flex-col gap-4">
+              <h3 className="text-xl text-green-400">動態停損利</h3>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm text-gray-300">停利目標 (%)</label>
+                <input 
+                  type="number" 
+                  value={takeProfit} 
+                  onChange={(e) => setTakeProfit(Number(e.target.value))}
+                  className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-green-400 transition-colors" 
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm text-gray-300">停損門檻 (%)</label>
+                <input 
+                  type="number" 
+                  value={stopLoss} 
+                  onChange={(e) => setStopLoss(Number(e.target.value))}
+                  className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-red-400 transition-colors" 
+                />
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-4">
-            <h3 className="text-xl text-purple">策略選擇</h3>
-            <div className="flex flex-col gap-3">
-              <label className="flex items-center gap-3 bg-black/30 p-3 rounded border border-glass-border cursor-pointer hover:border-purple transition-colors">
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
+              <h3 className="text-xl text-blue-400">布林通道配置</h3>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm text-gray-300">通道長度 (MA)</label>
                 <input 
-                  type="radio" 
-                  name="strategy" 
-                  value="skynet" 
-                  checked={strategy === 'skynet'} 
-                  onChange={(e) => setStrategy(e.target.value)}
-                  className="text-purple" 
+                  type="number" 
+                  value={bbLength} 
+                  onChange={(e) => setBbLength(Number(e.target.value))}
+                  className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-blue-400 transition-colors" 
                 />
-                <span>[天網-05] 核心量化引擎</span>
-              </label>
-              <label className="flex items-center gap-3 bg-black/30 p-3 rounded border border-glass-border cursor-pointer hover:border-purple transition-colors">
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm text-gray-300">標準差乘數 (Multiplier)</label>
                 <input 
-                  type="radio" 
-                  name="strategy" 
-                  value="stephigh" 
-                  checked={strategy === 'stephigh'}
-                  onChange={(e) => setStrategy(e.target.value)}
-                  className="text-purple" 
+                  type="number"
+                  step="0.1"
+                  value={bbMult} 
+                  onChange={(e) => setBbMult(Number(e.target.value))}
+                  className="bg-black/50 border border-glass-border rounded p-3 text-white focus:outline-none focus:border-blue-400 transition-colors" 
                 />
-                <span>步步高升 追高策略</span>
-              </label>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <h3 className="text-xl text-purple">策略選擇</h3>
+              <div className="flex flex-col gap-3">
+                <label className="flex items-center gap-3 bg-black/30 p-3 rounded border border-glass-border cursor-pointer hover:border-purple transition-colors">
+                  <input 
+                    type="radio" 
+                    name="strategy" 
+                    value="skynet" 
+                    checked={strategy === 'skynet'} 
+                    onChange={(e) => setStrategy(e.target.value)}
+                    className="text-purple" 
+                  />
+                  <span>[天網-05] 核心量化引擎</span>
+                </label>
+                <label className="flex items-center gap-3 bg-black/30 p-3 rounded border border-glass-border cursor-pointer hover:border-purple transition-colors">
+                  <input 
+                    type="radio" 
+                    name="strategy" 
+                    value="stephigh" 
+                    checked={strategy === 'stephigh'}
+                    onChange={(e) => setStrategy(e.target.value)}
+                    className="text-purple" 
+                  />
+                  <span>步步高升 追高策略</span>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -124,3 +181,4 @@ export default function StrategyPage() {
     </div>
   );
 }
+
