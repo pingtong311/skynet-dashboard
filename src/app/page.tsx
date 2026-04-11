@@ -1,152 +1,107 @@
-'use client';
-
-import { useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import Link from 'next/link';
 
 export default function Home() {
-  const [strategy, setStrategy] = useState('Skynet-05');
-  const [isTriggering, setIsTriggering] = useState(false);
-
-  const handleTrigger = async () => {
-    setIsTriggering(true);
-    // Simulate n8n webhook API call
-    setTimeout(() => {
-      setIsTriggering(false);
-      alert('天網信號已發送。');
-    }, 1500);
-  };
-
   return (
-    <div className="min-h-screen p-8 sm:p-20 font-[family-name:var(--font-sans)] flex flex-col items-center">
-      
-      {/* Main Content Grid */}
-      <main className="w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="w-full flex flex-col items-center justify-center py-12 px-4 sm:px-6">
+      <div className="text-center mb-16 space-y-4">
+        <h1 className="text-5xl font-extrabold tracking-tight text-white mb-2 shadow-sm drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+          SKYNET <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan to-purple">CENTRAL</span>
+        </h1>
+        <p className="text-gray-400 text-lg tracking-widest uppercase">
+          天網系統核心傳送門 / SYSTEM PORTAL
+        </p>
+      </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 w-full max-w-4xl">
         
-        {/* Left Column: Strategy Controls */}
-        <div className="lg:col-span-1 flex flex-col gap-8">
-          <div className="glass-panel p-6 flex flex-col gap-4">
-            <h2 className="text-xl font-semibold border-b border-glass-border pb-2 mb-2">策略控制台</h2>
-            
-            <div className="flex flex-col gap-2">
-              <label className="text-sm text-gray-400">當前運行演算法</label>
-              <select 
-                value={strategy}
-                onChange={(e) => setStrategy(e.target.value)}
-                className="w-full bg-black/50 border border-glass-border rounded-lg p-3 text-foreground focus:outline-none focus:border-cyan transition-colors"
-              >
-                <option value="Skynet-05">[天網-05] 核心量化引擎</option>
-                <option value="StepHigh">步步高升 (波段策略)</option>
-                <option value="NoMonitor">上班族免盯盤</option>
-              </select>
+        {/* Module 1: Strategy Control */}
+        <Link href="/strategy" className="group block">
+          <div className="h-full glass-panel p-8 rounded-2xl border border-cyan/30 hover:border-cyan transition-all duration-500 hover:shadow-[0_0_30px_rgba(34,211,238,0.2)] hover:-translate-y-2 relative overflow-hidden bg-gradient-to-b from-black/50 to-cyan/10">
+            <div className="absolute top-0 left-0 w-full h-1 bg-cyan group-hover:shadow-[0_0_10px_var(--color-cyan-glow)]"></div>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-16 h-16 rounded-full bg-cyan/20 flex items-center justify-center border border-cyan flex-shrink-0 group-hover:scale-110 transition-transform">
+                <span className="text-3xl">🎯</span>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white group-hover:text-cyan transition-colors">戰略控制中心</h2>
+                <p className="text-xs text-cyan tracking-widest mt-1">STRATEGY CONTROL</p>
+              </div>
             </div>
-
-            <div className="flex flex-col gap-2 mt-2">
-              <label className="text-sm text-gray-400">價格過濾門檻 (元)</label>
-              <input 
-                type="number" 
-                defaultValue={2000}
-                className="w-full bg-black/50 border border-glass-border rounded-lg p-3 text-foreground focus:outline-none focus:border-cyan transition-colors"
-              />
-            </div>
-
-            <button 
-              onClick={handleTrigger}
-              disabled={isTriggering}
-              className={`mt-6 w-full py-4 rounded-lg font-bold tracking-widest ${isTriggering ? 'opacity-50 cursor-not-allowed border border-cyan text-cyan' : 'glow-btn'}`}
-            >
-              {isTriggering ? 'EXECUTING...' : '強制觸發運算'}
-            </button>
+            <p className="text-gray-400 text-sm leading-relaxed">
+              調配天網策略參數，即時發送市場警戒與狙擊條件至 n8n 自動化核心。支援動態停損利及布林通道配置。
+            </p>
           </div>
+        </Link>
+        
+        {/* Module 2: Post-Trade Review (formerly root) */}
+        <Link href="/review" className="group block">
+          <div className="h-full glass-panel p-8 rounded-2xl border border-purple/30 hover:border-purple transition-all duration-500 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] hover:-translate-y-2 relative overflow-hidden bg-gradient-to-b from-black/50 to-purple/10">
+            <div className="absolute top-0 right-0 w-full h-1 bg-purple group-hover:shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-16 h-16 rounded-full bg-purple/20 flex items-center justify-center border border-purple flex-shrink-0 group-hover:scale-110 transition-transform">
+                <span className="text-3xl">📊</span>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white group-hover:text-purple transition-colors">復盤儀表板</h2>
+                <p className="text-xs text-purple tracking-widest mt-1">POST-TRADE REVIEW</p>
+              </div>
+            </div>
+            <p className="text-gray-400 text-sm leading-relaxed">
+              分析市場數據與回測績效，檢視 KD交叉、MACD 等技術指標訊號，回顧演算法進出場時機與獲利狀況。
+            </p>
+          </div>
+        </Link>
 
-          <div className="glass-panel p-6">
-            <h2 className="text-xl font-semibold border-b border-glass-border pb-2 mb-4">系統狀態</h2>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">n8n 核心流程</span>
-                <span className="text-green-400 text-sm">Active</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">排程掃描 (Cron)</span>
-                <span className="text-green-400 text-sm">Active</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Flowise AI 引擎</span>
-                <span className="text-green-400 text-sm">Active</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">資料庫連線</span>
-                <span className="text-yellow-400 text-sm">Syncing...</span>
-              </div>
+        {/* Future Module 3: Intelligence Matrix */}
+        <div className="h-full glass-panel p-8 rounded-2xl border border-white/5 opacity-60 cursor-not-allowed bg-black/40 relative overflow-hidden">
+          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10 p-4 text-center">
+             <span className="text-2xl mb-2">🔒</span>
+             <p className="text-white font-bold tracking-widest">MODULE LOCKED</p>
+             <p className="text-gray-400 text-xs mt-1">開發建置中...</p>
+          </div>
+          <div className="flex items-center gap-4 mb-6 blur-sm">
+            <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500 flex-shrink-0">
+              <span className="text-3xl">🧠</span>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">情報感知矩陣</h2>
+              <p className="text-xs text-blue-500 tracking-widest mt-1">AI INSIGHTS</p>
             </div>
           </div>
+          <p className="text-gray-500 text-sm leading-relaxed blur-sm">
+            深度學習總體經濟指標、新聞面情緒分析與異常交易量偵測，自動生成市場預警報告。
+          </p>
         </div>
 
-        {/* Right Column: Data Visualization & Alerts */}
-        <div className="lg:col-span-2 flex flex-col gap-8">
-          
-          {/* Chart / Market Overview */}
-          <div className="glass-panel p-6 h-[400px] flex flex-col">
-            <h2 className="text-xl font-semibold border-b border-glass-border pb-2 mb-4">系統歷史勝率與獲利回測矩陣</h2>
-            <div className="flex-1 w-full bg-black/20 rounded-lg p-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={[
-                    { name: '1月', winRate: 65, profit: 12 },
-                    { name: '2月', winRate: 72, profit: 18 },
-                    { name: '3月', winRate: 68, profit: 14 },
-                    { name: '4月', winRate: 85, profit: 24 },
-                    { name: '5月', winRate: 80, profit: 22 },
-                    { name: '6月', winRate: 91, profit: 30 }
-                  ]}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333333" />
-                  <XAxis dataKey="name" stroke="#888888" />
-                  <YAxis yAxisId="left" stroke="#888888" tickFormatter={(value) => `${value}%`} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#888888" tickFormatter={(value) => `${value}w`} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#333', borderRadius: '8px' }}
-                    itemStyle={{ color: '#fff' }}
-                  />
-                  <Legend />
-                  <Line yAxisId="left" type="monotone" name="勝率 (Win Rate %)" dataKey="winRate" stroke="#00f0ff" strokeWidth={3} dot={{ r: 4, fill: '#00f0ff' }} activeDot={{ r: 8 }} />
-                  <Line yAxisId="right" type="monotone" name="累計獲利 (萬)" dataKey="profit" stroke="#b026ff" strokeWidth={3} dot={{ r: 4, fill: '#b026ff' }} />
-                </LineChart>
-              </ResponsiveContainer>
+        {/* Future Module 4: Unknown */}
+        <div className="h-full glass-panel p-8 rounded-2xl border border-white/5 opacity-60 cursor-not-allowed bg-black/40 relative overflow-hidden">
+          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10 p-4 text-center">
+             <span className="text-2xl mb-2">🚧</span>
+             <p className="text-white font-bold tracking-widest">SYSTEM EXPANSION</p>
+             <p className="text-gray-400 text-xs mt-1">預留擴充槽</p>
+          </div>
+          <div className="flex items-center gap-4 mb-6 blur-sm">
+            <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500 flex-shrink-0">
+              <span className="text-3xl">⚡</span>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">自動化狙擊</h2>
+              <p className="text-xs text-green-500 tracking-widest mt-1">AUTO EXECUTION</p>
             </div>
           </div>
-
-          {/* AI Insights */}
-          <div className="glass-panel p-6">
-            <h2 className="text-xl font-semibold border-b border-glass-border pb-2 mb-4 flex justify-between items-center">
-              <span>Flowise AI 即時洞察</span>
-              <span className="text-xs bg-purple/20 text-purple px-2 py-1 rounded">Beta</span>
-            </h2>
-            <div className="space-y-4">
-              <div className="p-4 bg-black/40 border border-glass-border rounded-lg border-l-4 border-l-purple">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-medium text-purple">2330 台積電籌碼異動分析</h3>
-                  <span className="text-xs text-gray-500">10 mins ago</span>
-                </div>
-                <p className="text-sm text-gray-300 leading-relaxed">
-                  外資連續三天買超且突破短期壓力區。符合「天網-05」第一階段濾網條件。乖離率目前低於 15% 安全範圍，建議可納入觀察名單。
-                </p>
-              </div>
-              <div className="p-4 bg-black/40 border border-glass-border rounded-lg border-l-4 border-l-cyan">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-medium text-cyan">大盤情緒指標</h3>
-                  <span className="text-xs text-gray-500">1 hour ago</span>
-                </div>
-                <p className="text-sm text-gray-300 leading-relaxed">
-                  今日市場恐慌指數 (VIX) 下降，資金有向電子權值股流入跡象。
-                </p>
-              </div>
-            </div>
-          </div>
-          
+          <p className="text-gray-500 text-sm leading-relaxed blur-sm">
+            直連券商 API，實作毫秒級程式交易，根據天網發訊號後無延遲自動掛單與平倉。
+          </p>
         </div>
-      </main>
+
+      </div>
+
+      <div className="mt-16 text-center">
+         <div className="inline-flex items-center gap-2 px-4 py-2 border border-white/10 rounded-full bg-white/5">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-ping"></div>
+            <span className="text-xs font-mono text-gray-400">SKYNET OPERATING NORMALLY</span>
+         </div>
+      </div>
     </div>
   );
 }

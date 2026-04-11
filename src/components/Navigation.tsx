@@ -7,9 +7,9 @@ export default function Navigation() {
   const pathname = usePathname();
 
   const navItems = [
-    { name: '總覽面板 (Overview)', path: '/' },
-    { name: '策略控制台 (Strategy)', path: '/strategy' },
-    { name: 'AI 洞察 (AI Insights)', path: '/ai' },
+    { name: '天網總部 (Portal)', path: '/' },
+    { name: '復盤儀表 (Review)', path: '/review' },
+    { name: '戰略控制 (Strategy)', path: '/strategy' },
   ];
 
   return (
