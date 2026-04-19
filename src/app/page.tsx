@@ -2,106 +2,118 @@ import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="w-full flex flex-col items-center justify-center py-12 px-4 sm:px-6">
-      <div className="text-center mb-16 space-y-4">
-        <h1 className="text-5xl font-extrabold tracking-tight text-white mb-2 shadow-sm drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-          SKYNET <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan to-purple">CENTRAL</span>
+    <div className="w-full flex flex-col items-center justify-center py-20 px-4">
+      {/* Hero Section */}
+      <div className="text-center mb-20 space-y-6">
+        <div className="inline-block px-4 py-1.5 rounded-full bg-cyan/10 border border-cyan/20 text-[10px] font-bold tracking-[0.3em] text-cyan uppercase mb-4">
+          Taiwan Stock Market AI Simulation Core
+        </div>
+        <h1 className="text-6xl font-black tracking-tighter text-white">
+          SKYNET <span className="text-cyan italic">OS</span>
         </h1>
-        <p className="text-gray-400 text-lg tracking-widest uppercase">
-          天網系統核心傳送門 / SYSTEM PORTAL
+        <p className="text-gray-500 text-sm tracking-widest uppercase max-w-lg mx-auto leading-relaxed">
+          天網系統全能極速量化交易引擎 V10
+          <br />
+          <span className="text-[10px] text-cyan/60 mt-2 block italic font-bold">AI 虛擬投資人實戰監控中心</span>
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 w-full max-w-4xl">
+      {/* Grid of Control Modules */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-5xl">
         
         {/* Module 1: Strategy Control */}
-        <Link href="/strategy" className="group block">
-          <div className="h-full glass-panel p-8 rounded-2xl border border-cyan/30 hover:border-cyan transition-all duration-500 hover:shadow-[0_0_30px_rgba(34,211,238,0.2)] hover:-translate-y-2 relative overflow-hidden bg-gradient-to-b from-black/50 to-cyan/10">
-            <div className="absolute top-0 left-0 w-full h-1 bg-cyan group-hover:shadow-[0_0_10px_var(--color-cyan-glow)]"></div>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full bg-cyan/20 flex items-center justify-center border border-cyan flex-shrink-0 group-hover:scale-110 transition-transform">
-                <span className="text-3xl">🎯</span>
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white group-hover:text-cyan transition-colors">戰略控制中心</h2>
-                <p className="text-xs text-cyan tracking-widest mt-1">STRATEGY CONTROL</p>
-              </div>
-            </div>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              調配天網策略參數，即時發送市場警戒與狙擊條件至 n8n 自動化核心。支援動態停損利及布林通道配置。
-            </p>
-          </div>
-        </Link>
+        <ControlCard 
+          href="/strategy"
+          title="模擬戰略中心"
+          sub="STRATEGY MATRIX"
+          desc="調配 AI 虛擬投資人的交易邏輯。設定台股選股門檻、趨勢追蹤參數與模擬風控條件。"
+          icon="🎯"
+          color="cyan"
+        />
         
-        {/* Module 2: Post-Trade Review (formerly root) */}
-        <Link href="/review" className="group block">
-          <div className="h-full glass-panel p-8 rounded-2xl border border-purple/30 hover:border-purple transition-all duration-500 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] hover:-translate-y-2 relative overflow-hidden bg-gradient-to-b from-black/50 to-purple/10">
-            <div className="absolute top-0 right-0 w-full h-1 bg-purple group-hover:shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full bg-purple/20 flex items-center justify-center border border-purple flex-shrink-0 group-hover:scale-110 transition-transform">
-                <span className="text-3xl">📊</span>
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white group-hover:text-purple transition-colors">復盤儀表板</h2>
-                <p className="text-xs text-purple tracking-widest mt-1">POST-TRADE REVIEW</p>
-              </div>
-            </div>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              分析市場數據與回測績效，檢視 KD交叉、MACD 等技術指標訊號，回顧演算法進出場時機與獲利狀況。
-            </p>
-          </div>
-        </Link>
+        {/* Module 2: War Room (Review) */}
+        <ControlCard 
+          href="/review"
+          title="實時戰情儀表"
+          sub="WAR ROOM MONITOR"
+          desc="同步台股開盤行情，觀摩 AI 虛擬投資人的即時部位增長、盈虧變化與模擬實戰績效。"
+          icon="📊"
+          color="purple"
+        />
 
-        {/* Future Module 3: Intelligence Matrix */}
-        <div className="h-full glass-panel p-8 rounded-2xl border border-white/5 opacity-60 cursor-not-allowed bg-black/40 relative overflow-hidden">
-          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10 p-4 text-center">
-             <span className="text-2xl mb-2">🔒</span>
-             <p className="text-white font-bold tracking-widest">MODULE LOCKED</p>
-             <p className="text-gray-400 text-xs mt-1">開發建置中...</p>
-          </div>
-          <div className="flex items-center gap-4 mb-6 blur-sm">
-            <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500 flex-shrink-0">
-              <span className="text-3xl">🧠</span>
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">情報感知矩陣</h2>
-              <p className="text-xs text-blue-500 tracking-widest mt-1">AI INSIGHTS</p>
-            </div>
-          </div>
-          <p className="text-gray-500 text-sm leading-relaxed blur-sm">
-            深度學習總體經濟指標、新聞面情緒分析與異常交易量偵測，自動生成市場預警報告。
-          </p>
-        </div>
+        {/* Module 3: AI Intelligence */}
+        <ControlCard 
+          href="/ai"
+          title="情報感知矩陣"
+          sub="AI INSIGHT STREAM"
+          desc="查看 AI 在交易時段的思考邏輯。包含市場情緒掃描、異常量偵測與實時選股日誌。"
+          icon="🧠"
+          color="green"
+        />
 
-        {/* Future Module 4: Unknown */}
-        <div className="h-full glass-panel p-8 rounded-2xl border border-white/5 opacity-60 cursor-not-allowed bg-black/40 relative overflow-hidden">
-          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10 p-4 text-center">
-             <span className="text-2xl mb-2">🚧</span>
-             <p className="text-white font-bold tracking-widest">SYSTEM EXPANSION</p>
-             <p className="text-gray-400 text-xs mt-1">預留擴充槽</p>
+        {/* Module 4: Execution System */}
+        <div className="group relative overflow-hidden glass-panel p-8 opacity-40 grayscale cursor-not-allowed">
+          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-10 p-4 text-center">
+             <div className="text-xs font-black tracking-widest uppercase border border-white/20 px-3 py-1 rounded">Locked</div>
+             <p className="text-[10px] text-gray-400 mt-2 uppercase tracking-tighter">實盤 API 介接開發中</p>
           </div>
-          <div className="flex items-center gap-4 mb-6 blur-sm">
-            <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500 flex-shrink-0">
+          <div className="flex items-center gap-5 mb-6 blur-sm">
+            <div className="w-14 h-14 rounded-xl bg-gray-500/10 flex items-center justify-center border border-white/10 shrink-0">
               <span className="text-3xl">⚡</span>
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white">自動化狙擊</h2>
-              <p className="text-xs text-green-500 tracking-widest mt-1">AUTO EXECUTION</p>
+              <h2 className="text-xl font-bold text-white uppercase tracking-tight">自動狙擊系統</h2>
+              <p className="text-[10px] text-gray-500 tracking-widest mt-0.5">LIVE EXECUTION</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm leading-relaxed blur-sm">
+          <p className="text-gray-500 text-xs leading-relaxed blur-sm">
             直連券商 API，實作毫秒級程式交易，根據天網發訊號後無延遲自動掛單與平倉。
           </p>
         </div>
-
       </div>
 
-      <div className="mt-16 text-center">
-         <div className="inline-flex items-center gap-2 px-4 py-2 border border-white/10 rounded-full bg-white/5">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-ping"></div>
-            <span className="text-xs font-mono text-gray-400">SKYNET OPERATING NORMALLY</span>
+      <div className="mt-24 text-center">
+         <div className="inline-flex items-center gap-3 px-6 py-3 border border-glass-border rounded-full bg-glass-bg backdrop-blur-sm">
+            <span className="status-indicator status-online"></span>
+            <span className="text-[10px] font-bold tracking-[0.2em] text-gray-400 uppercase">Skynet Core Operating Normally</span>
          </div>
       </div>
     </div>
   );
 }
+
+function ControlCard({ href, title, sub, desc, icon, color }: { href: string, title: string, sub: string, desc: string, icon: string, color: string }) {
+  const colorMap: any = {
+    cyan: 'group-hover:border-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.15)] border-cyan/20',
+    purple: 'group-hover:border-purple hover:shadow-[0_0_30px_rgba(188,19,254,0.15)] border-purple/20',
+    green: 'group-hover:border-green hover:shadow-[0_0_30px_rgba(0,255,157,0.15)] border-green/20'
+  };
+  const iconBgMap: any = {
+    cyan: 'bg-cyan/10 border-cyan/30 text-cyan',
+    purple: 'bg-purple/10 border-purple/30 text-purple',
+    green: 'bg-green/10 border-green/30 text-green'
+  };
+
+  return (
+    <Link href={href} className="group block">
+      <div className={`h-full glass-panel p-8 transition-all duration-500 hover:-translate-y-1 ${colorMap[color]}`}>
+        <div className="flex items-center gap-5 mb-6">
+          <div className={`w-14 h-14 rounded-xl flex items-center justify-center border shrink-0 group-hover:scale-110 transition-transform ${iconBgMap[color]}`}>
+            <span className="text-3xl">{icon}</span>
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight group-hover:text-white transition-colors">{title}</h2>
+            <p className={`text-[10px] tracking-widest mt-0.5 font-bold opacity-70`}>{sub}</p>
+          </div>
+        </div>
+        <p className="text-gray-400 text-xs leading-relaxed group-hover:text-gray-300 transition-colors">
+          {desc}
+        </p>
+        <div className="mt-6 flex items-center gap-2 text-[10px] font-bold tracking-widest text-cyan opacity-0 group-hover:opacity-100 transition-opacity">
+          ACCESS TERMINAL <span>→</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+

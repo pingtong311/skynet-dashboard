@@ -1,21 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SKYNET Dashboard",
-  description: "天網系統戰情室",
+  title: "SKYNET OS | 戰略控制中心",
+  description: "天網系統全能極速量化交易引擎 V10 戰情室",
 };
 
 export default function RootLayout({
@@ -24,16 +16,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="zh-TW"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col font-sans mb-16">
+    <html lang="zh-TW" className="h-full antialiased dark">
+      <body className={`${inter.className} min-h-screen bg-background text-foreground selection:bg-cyan/30`}>
         <Navigation />
-        <div className="w-full max-w-6xl mx-auto px-8 sm:px-0">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {children}
-        </div>
+        </main>
       </body>
     </html>
   );
 }
+
