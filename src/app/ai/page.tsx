@@ -4,16 +4,27 @@ import { useState, useEffect } from 'react';
 
 export default function AIPage() {
   const [mounted, setMounted] = useState(false);
-  const [logs, setLogs] = useState([
-    { time: '13:30:00', type: 'CORE', msg: '台股今日收盤完成。AI 虛擬投資人本日模擬收益：+1.2%' },
-    { time: '11:45:22', type: 'SCAN', msg: '偵測到 2330 台積電大單敲進，AI 自動調整模擬部位權重。' },
-    { time: '10:15:10', type: 'THOUGHT', msg: '半導體族群連動性強，目前 2454 聯發科展現強勁買盤支撐。' },
-    { time: '09:30:01', type: 'ALERT', msg: '偵測到盤中異常大量，觸發 Skynet-Omni V10 當沖掃描邏輯。', isAlert: true },
-    { time: '09:00:00', type: 'INFO', msg: '台股開盤。AI 虛擬投資人啟動自動化市場掃描引擎。' },
-    { time: '08:45:00', type: 'INIT', msg: '天網 AI 模擬核心初始化，正在同步 localStorage 戰略參數。' },
-  ]);
+  const [logs, setLogs] = useState<{ time: string, type: string, msg: string, isAlert?: boolean }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => setMounted(true), []);
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch('/api/skynet/insights');
+      const data = await res.json();
+      setLogs(data);
+    } catch (e) {
+      console.error('Failed to fetch logs', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setMounted(true);
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   if (!mounted) return null;
 
@@ -40,9 +51,19 @@ export default function AIPage() {
           </div>
           
           <div className="p-8 h-[600px] overflow-y-auto space-y-6 font-mono scrollbar-hide">
-            {logs.map((log, i) => (
-              <div key={i} className={`flex gap-6 items-start group ${log.isAlert ? 'bg-cyan/5 -mx-4 px-4 py-3 rounded-xl border border-cyan/10' : ''}`}>
-                <span className="text-[10px] opacity-30 shrink-0 mt-1 font-bold">{log.time}</span>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50">
+                <div className="w-8 h-8 border-2 border-cyan border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-[10px] tracking-widest uppercase font-bold">Connecting to Skynet Neural Link...</p>
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-500 text-[10px] uppercase tracking-widest">
+                No real-time insights available for current session.
+              </div>
+            ) : (
+              logs.map((log, i) => (
+                <div key={i} className={`flex gap-6 items-start group ${log.isAlert ? 'bg-cyan/5 -mx-4 px-4 py-3 rounded-xl border border-cyan/10' : ''}`}>
+                  <span className="text-[10px] opacity-30 shrink-0 mt-1 font-bold">{log.time}</span>
                 <div className="flex flex-col gap-1">
                   <span className={`text-[10px] font-black tracking-widest uppercase ${
                     log.type === 'ALERT' ? 'text-red' : 

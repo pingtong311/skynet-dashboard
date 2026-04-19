@@ -59,9 +59,9 @@ export default function StrategyPage() {
       });
 
       if (response.ok) {
-        setStatusMsg({ type: 'success', text: '✅ 模擬戰略參數已成功同步至 AI 核心引擎。' });
+        setStatusMsg({ type: 'success', text: '✅ 模擬戰略參數已成功同步至天網雲端核心 (Google Sheets)。' });
       } else {
-        setStatusMsg({ type: 'error', text: '❌ 同步失敗，請檢查 n8n 服務狀態。' });
+        setStatusMsg({ type: 'error', text: '❌ 同步失敗，請檢查 n8n 服務狀態與 Webhook 配置。' });
       }
     } catch (error) {
       setStatusMsg({ type: 'error', text: '❌ 網路錯誤，無法連線至 Webhook。' });

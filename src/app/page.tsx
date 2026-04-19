@@ -51,25 +51,15 @@ export default function Home() {
           color="green"
         />
 
-        {/* Module 4: Execution System */}
-        <div className="group relative overflow-hidden glass-panel p-8 opacity-40 grayscale cursor-not-allowed">
-          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-10 p-4 text-center">
-             <div className="text-xs font-black tracking-widest uppercase border border-white/20 px-3 py-1 rounded">Locked</div>
-             <p className="text-[10px] text-gray-400 mt-2 uppercase tracking-tighter">實盤 API 介接開發中</p>
-          </div>
-          <div className="flex items-center gap-5 mb-6 blur-sm">
-            <div className="w-14 h-14 rounded-xl bg-gray-500/10 flex items-center justify-center border border-white/10 shrink-0">
-              <span className="text-3xl">⚡</span>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white uppercase tracking-tight">自動狙擊系統</h2>
-              <p className="text-[10px] text-gray-500 tracking-widest mt-0.5">LIVE EXECUTION</p>
-            </div>
-          </div>
-          <p className="text-gray-500 text-xs leading-relaxed blur-sm">
-            直連券商 API，實作毫秒級程式交易，根據天網發訊號後無延遲自動掛單與平倉。
-          </p>
-        </div>
+        {/* Module 4: Command Center (Terminal) */}
+        <ControlCard 
+          href="/terminal"
+          title="天網指揮中心"
+          sub="STRATEGIC TERMINAL"
+          desc="透過指令直接與天網副官對話。進行即時報價查詢、手動部位紀錄與深度 AI 量化分析。"
+          icon="📟"
+          color="cyan"
+        />
       </div>
 
       <div className="mt-24 text-center">

@@ -10,6 +10,7 @@ export default function Navigation() {
     { name: '總部 (HQ)', path: '/' },
     { name: '戰情室 (WAR ROOM)', path: '/review' },
     { name: '策略 (STRATEGY)', path: '/strategy' },
+    { name: '指揮中心 (COMMAND)', path: '/terminal' },
     { name: 'AI 思考 (AI)', path: '/ai' },
   ];
 
