@@ -53,34 +53,45 @@ export default function TerminalPage() {
     setIsLoading(true);
 
     try {
-      // Placeholder for n8n Webhook Gateway
-      // In production, this should point to your actual n8n webhook URL
-      const WEBHOOK_URL = 'https://primary-production-22702.up.railway.app/webhook/skynet-terminal-gateway';
+      // Use environment variables for webhook URL
+      const WEBHOOK_URL = process.env.NEXT_PUBLIC_SKYNET_WEBHOOK_URL || 'https://primary-production-22702.up.railway.app/webhook/skynet-terminal-gateway';
       
-      const response = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          command: currentInput,
-          source: 'dashboard-terminal',
-          timestamp: new Date().toISOString(),
-        }),
-      });
+      let response;
+      let responseData;
 
-      if (!response.ok) {
-        throw new Error('伺服器連線失敗');
+      // If the command ends with '?', route to Flowise AI Brain
+      if (currentInput.endsWith('?')) {
+        response = await fetch('/api/flowise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: currentInput }),
+        });
+        responseData = await response.json();
+      } else {
+        // Otherwise route to n8n Gateway via local Proxy
+        response = await fetch('/api/terminal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            command: currentInput,
+            source: 'dashboard-terminal',
+            timestamp: new Date().toISOString(),
+          }),
+        });
+        responseData = await response.json();
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorData = responseData || {};
+        throw new Error(errorData.error || '伺服器連線失敗');
+      }
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.message || '指令執行成功。',
+        content: responseData.text || responseData.message || '指令執行成功。',
         timestamp: new Date(),
-        data: data.result || null,
+        data: responseData.result || null,
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -88,7 +99,7 @@ export default function TerminalPage() {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'system',
-        content: `⚠️ 錯誤: ${error instanceof Error ? error.message : '連線逾時，請檢查 n8n 工作流狀態。'}`,
+        content: `⚠️ 錯誤: ${error instanceof Error ? error.message : '連線逾時，請檢查伺服器狀態。'}`,
         timestamp: new Date(),
       }]);
     } finally {

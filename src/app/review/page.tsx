@@ -14,9 +14,9 @@ const ASSET_DATA = [
 ];
 
 const POSITIONS = [
-  { id: '2330', name: '台積電', type: '模擬買入', price: 810, current: 815, profit: '+0.62%', color: 'text-green' },
-  { id: '2317', name: '鴻海', type: '模擬買入', price: 150, current: 152, profit: '+1.33%', color: 'text-green' },
-  { id: '2454', name: '聯發科', type: '觀察中', price: 1120, current: 1115, profit: '-0.45%', color: 'text-red' },
+  { id: '2330', name: '台積電', type: '模擬買入', price: 1030, current: 1045, profit: '+1.45%', color: 'text-green', time: '09:15:00' },
+  { id: '2317', name: '鴻海', type: '模擬買入', price: 200, current: 205, profit: '+2.50%', color: 'text-green', time: '09:45:12' },
+  { id: '2454', name: '聯發科', type: '觀察中', price: 1250, current: 1245, profit: '-0.40%', color: 'text-red', time: '10:30:05' },
 ];
 
 export default function ReviewPage() {
@@ -24,25 +24,55 @@ export default function ReviewPage() {
     strategy: 'Skynet-Omni-V10',
     priceThreshold: 2000,
     stopLoss: 2.5,
+    takeProfit: 5.0,
     isDayTrading: true,
+    bbLength: 20,
+    bbMult: 2.0,
+    maxBias: 3.5,
+    minPrice: 50,
+    initialCapital: 1000000,
   });
 
+  const [monitoringData, setMonitoringData] = useState<any>(null);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [lastScanTime, setLastScanTime] = useState('');
   const [mounted, setMounted] = useState(false);
 
+  const fetchMonitoringData = async () => {
+    try {
+      const response = await fetch('/api/skynet/monitoring');
+      if (response.ok) {
+        const data = await response.json();
+        setMonitoringData(data);
+        setLastScanTime(new Date().toLocaleTimeString());
+      }
+    } catch (error) {
+      console.error('Failed to fetch monitoring data', error);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
-    const savedConfig = localStorage.getItem('skynet_config');
-    if (savedConfig) {
-      try {
-        setConfig(JSON.parse(savedConfig));
-      } catch (e) {
-        console.error('Failed to parse saved config', e);
+    fetchMonitoringData();
+    
+    // Poll every 30 seconds
+    const interval = setInterval(fetchMonitoringData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      const savedConfig = localStorage.getItem('skynet_config');
+      if (savedConfig) {
+        try {
+          setConfig(prev => ({ ...prev, ...JSON.parse(savedConfig) }));
+        } catch (e) {
+          console.error('Failed to parse saved config', e);
+        }
       }
     }
-    setLastScanTime(new Date().toLocaleString());
-  }, []);
+  }, [mounted]);
 
   useEffect(() => {
     if (mounted) {
@@ -62,6 +92,7 @@ export default function ReviewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...config,
+          action: 'SYNC_AI_LOGIC',
           source: 'Dashboard_Manual_Deploy',
           timestamp: new Date().toISOString()
         }),
@@ -79,7 +110,43 @@ export default function ReviewPage() {
     }
   };
 
+  const handleResetCapital = async () => {
+    if (!confirm('⚠️ 確定要將模擬本金重設歸零嗎？這將清除當前所有未實現盈虧。')) return;
+    
+    setIsResetting(true);
+    try {
+      const response = await fetch('/api/skynet/monitoring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'RESET_CAPITAL',
+          principal: config.initialCapital,
+          source: 'Dashboard_Manual_Reset',
+          timestamp: new Date().toISOString()
+        }),
+      });
+
+      if (response.ok) {
+        alert('✅ 模擬本金已成功重設！(所有虛擬盈虧已清零)');
+        fetchMonitoringData();
+      } else {
+        throw new Error('Reset failed');
+      }
+    } catch (error) {
+      alert('❌ 重設失敗，請檢查網路連線。');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   if (!mounted) return null;
+
+  // Derive dynamic stats from monitoringData or defaults
+  const currentCapital = monitoringData?.currentCapital || 1024910;
+  const dailyPnL = monitoringData?.dailyPnL || 24910;
+  const totalProfit = monitoringData?.totalProfit || 158420;
+  const pnlPercent = ((dailyPnL / config.initialCapital) * 100).toFixed(2);
+  const isPnLPositive = dailyPnL >= 0;
 
   return (
     <div className="min-h-screen pb-20 pt-6">
@@ -111,11 +178,35 @@ export default function ReviewPage() {
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <StatCard label="AI 虛擬本金" value="1,024,910 TWD" sub="起始模擬資金 1,000,000" color="cyan" />
-        <StatCard label="今日模擬盈虧" value="+24,910 TWD" sub="當日未實現損益" color="green" />
-        <StatCard label="累計模擬獲利" value="+158,420 TWD" sub="歷史累計績效" color="cyan" />
+        <div className="relative group">
+          <StatCard 
+            label="AI 虛擬本金" 
+            value={`${currentCapital.toLocaleString()} TWD`} 
+            sub={`起始模擬資金 ${config.initialCapital.toLocaleString()}`} 
+            color="cyan" 
+          />
+          <button 
+            onClick={handleResetCapital}
+            disabled={isResetting}
+            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red/20 hover:bg-red/40 text-red text-[10px] px-2 py-0.5 rounded border border-red/30"
+          >
+            {isResetting ? '...' : '重設'}
+          </button>
+        </div>
+        <StatCard 
+          label="今日模擬盈虧" 
+          value={`${isPnLPositive ? '+' : ''}${dailyPnL.toLocaleString()} TWD`} 
+          sub={`${isPnLPositive ? '🟢' : '🔴'} 當日收益率 ${pnlPercent}%`} 
+          color={isPnLPositive ? 'green' : 'red'} 
+        />
+        <StatCard 
+          label="累計模擬獲利" 
+          value={`${totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString()} TWD`} 
+          sub="歷史累計績效" 
+          color="cyan" 
+        />
         <StatCard label="開盤監控時數" value="4 小時 30 分" sub="今日開盤執行進度" color="cyan" />
-        <StatCard label="當日選股次數" value="12" sub="今日觸發交易條件" color="gray" />
+        <StatCard label="當日選股次數" value={monitoringData?.scanCount || "12"} sub="今日觸發交易條件" color="gray" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -129,12 +220,12 @@ export default function ReviewPage() {
               <div className="text-[10px] text-gray-500 flex gap-4 uppercase italic">
                 <span>Model: Skynet-Omni V10</span>
                 <span>Type: Virtual Trading</span>
-                <span>Base: 1.0M TWD</span>
+                <span>Base: {(config.initialCapital / 1000000).toFixed(1)}M TWD</span>
               </div>
             </div>
             <div className="h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ASSET_DATA}>
+                <AreaChart data={monitoringData?.assetHistory || ASSET_DATA}>
                   <defs>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="var(--accent-cyan)" stopOpacity={0.3}/>
@@ -143,7 +234,7 @@ export default function ReviewPage() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
                   <XAxis dataKey="time" stroke="#4b5563" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#4b5563" fontSize={10} axisLine={false} tickLine={false} domain={['dataMin - 5000', 'dataMax + 5000']} />
+                  <YAxis stroke="#4b5563" fontSize={10} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                   />
@@ -160,6 +251,7 @@ export default function ReviewPage() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="text-gray-500 border-b border-glass-border uppercase text-[10px] tracking-widest">
+                    <th className="pb-3 font-medium">時間</th>
                     <th className="pb-3 font-medium">標的</th>
                     <th className="pb-3 font-medium">模擬動作</th>
                     <th className="pb-3 font-medium">參考進場</th>
@@ -169,21 +261,31 @@ export default function ReviewPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-glass-border">
-                  {POSITIONS.map((pos) => (
-                    <tr key={pos.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-4 font-bold">{pos.id} {pos.name}</td>
-                      <td className="py-4"><span className="bg-cyan/10 text-cyan px-2 py-0.5 rounded text-[10px] uppercase font-bold">{pos.type}</span></td>
-                      <td className="py-4 font-mono">{pos.price}</td>
-                      <td className="py-4 font-mono text-cyan">{pos.current}</td>
-                      <td className={`py-4 font-mono ${pos.color}`}>{pos.profit}</td>
-                      <td className="py-4 text-right">
-                        <span className="text-[10px] uppercase border border-glass-border px-2 py-1 rounded">實時觀察中</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {(monitoringData?.positions || POSITIONS).map((pos: any, idx: number) => {
+                    const isProfit = (pos.profit || pos.Profit || '').toString().includes('+');
+                    return (
+                      <tr key={`${pos.id || pos.Ticker}-${idx}`} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="py-4 font-mono text-[10px] text-gray-500">{pos.time || pos.Date || '-'}</td>
+                        <td className="py-4 font-bold">{pos.id || pos.Ticker} {pos.name || pos.Name}</td>
+                        <td className="py-4">
+                          <span className={`${(pos.type || pos.Action) === 'SELL' ? 'bg-red/10 text-red' : 'bg-cyan/10 text-cyan'} px-2 py-0.5 rounded text-[10px] uppercase font-bold`}>
+                            {pos.type || pos.Action || '監控中'}
+                          </span>
+                        </td>
+                        <td className="py-4 font-mono">{pos.price || pos.Entry_Price || pos.Price || '-'}</td>
+                        <td className="py-4 font-mono text-cyan">{pos.current || pos.Price}</td>
+                        <td className={`py-4 font-mono ${isProfit ? 'text-green' : 'text-red'}`}>{pos.profit || pos.Profit || '0.00%'}</td>
+                        <td className="py-4 text-right">
+                          <span className="text-[10px] uppercase border border-glass-border px-2 py-1 rounded">
+                            {pos.Status || '實時觀察中'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-              {POSITIONS.length === 0 && <div className="py-10 text-center text-gray-500 italic">當前無模擬持倉</div>}
+              {(!monitoringData?.positions && POSITIONS.length === 0) && <div className="py-10 text-center text-gray-500 italic">當前無模擬持倉</div>}
             </div>
           </div>
         </div>
@@ -198,11 +300,24 @@ export default function ReviewPage() {
               <span className="text-[10px] text-cyan bg-cyan/10 px-2 py-0.5 rounded uppercase tracking-tighter">Mind Stream</span>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 font-sans">
-              <ThoughtItem time="09:15:04" text="早盤強勢股掃描完成。2330 出現多頭排列，模擬買入 1 張。" isAlert />
-              <ThoughtItem time="09:45:12" text="偵測到航運板塊資金進駐，觀察長榮 (2603) 動能。" />
-              <ThoughtItem time="10:30:01" text="[天網評估] 市場量能略微萎縮，調整當沖持倉門檻。" />
-              <ThoughtItem time="11:15:44" text="2317 觸及壓力位，AI 決定先行結算 50% 模擬部位獲利。" isAlert />
-              <ThoughtItem time="13:20:22" text="尾盤拉抬預期升溫，掃描尾盤避險標的中..." />
+              {monitoringData?.thoughts ? (
+                monitoringData.thoughts.map((thought: any, i: number) => (
+                  <ThoughtItem 
+                    key={i} 
+                    time={thought.time || lastScanTime} 
+                    text={thought.text || thought} 
+                    isAlert={thought.isAlert || thought.toString().includes('! ')} 
+                  />
+                ))
+              ) : (
+                <>
+                  <ThoughtItem time="09:15:04" text="早盤強勢股掃描完成。2330 出現多頭排列，模擬買入 1 張。" isAlert />
+                  <ThoughtItem time="09:45:12" text="偵測到航運板塊資金進駐，觀察長榮 (2603) 動能。" />
+                  <ThoughtItem time="10:30:01" text="[天網評估] 市場量能略微萎縮，調整當沖持倉門檻。" />
+                  <ThoughtItem time="11:15:44" text="2317 觸及壓力位，AI 決定先行結算 50% 模擬部位獲利。" isAlert />
+                  <ThoughtItem time="13:20:22" text="尾盤拉抬預期升溫，掃描尾盤避險標的中..." />
+                </>
+              )}
             </div>
           </div>
 
@@ -225,9 +340,28 @@ export default function ReviewPage() {
                 </select>
               </div>
 
+              <div className="space-y-2">
+                <label className="metric-label">虛擬初始本金 (TWD)</label>
+                <input 
+                  type="number"
+                  value={config.initialCapital}
+                  onChange={(e) => handleConfigChange('initialCapital', parseInt(e.target.value))}
+                  className="w-full bg-black/40 border border-glass-border rounded p-2 text-sm focus:border-cyan outline-none font-mono"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="metric-label">選股門檻 (元)</label>
+                  <label className="metric-label">選股最低價</label>
+                  <input 
+                    type="number"
+                    value={config.minPrice}
+                    onChange={(e) => handleConfigChange('minPrice', parseInt(e.target.value))}
+                    className="w-full bg-black/40 border border-glass-border rounded p-2 text-sm focus:border-cyan outline-none font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="metric-label">選股最高價</label>
                   <input 
                     type="number"
                     value={config.priceThreshold}
@@ -235,6 +369,9 @@ export default function ReviewPage() {
                     className="w-full bg-black/40 border border-glass-border rounded p-2 text-sm focus:border-cyan outline-none font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="metric-label">模擬停損 (%)</label>
                   <input 
@@ -243,6 +380,48 @@ export default function ReviewPage() {
                     value={config.stopLoss}
                     onChange={(e) => handleConfigChange('stopLoss', parseFloat(e.target.value))}
                     className="w-full bg-black/40 border border-glass-border rounded p-2 text-sm focus:border-cyan outline-none font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="metric-label">模擬停利 (%)</label>
+                  <input 
+                    type="number"
+                    step="0.1"
+                    value={config.takeProfit}
+                    onChange={(e) => handleConfigChange('takeProfit', parseFloat(e.target.value))}
+                    className="w-full bg-black/40 border border-glass-border rounded p-2 text-sm focus:border-cyan outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 p-3 bg-black/20 rounded border border-glass-border">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-500 uppercase">BB Length</label>
+                  <input 
+                    type="number"
+                    value={config.bbLength}
+                    onChange={(e) => handleConfigChange('bbLength', parseInt(e.target.value))}
+                    className="w-full bg-transparent text-xs font-mono outline-none"
+                  />
+                </div>
+                <div className="space-y-1 border-l border-glass-border pl-3">
+                  <label className="text-[10px] text-gray-500 uppercase">BB Mult</label>
+                  <input 
+                    type="number"
+                    step="0.1"
+                    value={config.bbMult}
+                    onChange={(e) => handleConfigChange('bbMult', parseFloat(e.target.value))}
+                    className="w-full bg-transparent text-xs font-mono outline-none"
+                  />
+                </div>
+                <div className="space-y-1 border-l border-glass-border pl-3">
+                  <label className="text-[10px] text-gray-500 uppercase">Max Bias</label>
+                  <input 
+                    type="number"
+                    step="0.1"
+                    value={config.maxBias}
+                    onChange={(e) => handleConfigChange('maxBias', parseFloat(e.target.value))}
+                    className="w-full bg-transparent text-xs font-mono outline-none"
                   />
                 </div>
               </div>
@@ -280,10 +459,10 @@ function StatCard({ label, value, sub, color }: { label: string, value: string, 
     gray: 'text-gray-400'
   };
   return (
-    <div className="glass-panel p-4 flex flex-col gap-1">
+    <div className="glass-panel p-4 flex flex-col gap-1 h-full">
       <span className="metric-label">{label}</span>
       <span className={`metric-value ${colorMap[color]}`}>{value}</span>
-      <span className="text-[9px] text-gray-500 uppercase tracking-tighter">{sub}</span>
+      <span className="text-[9px] text-gray-500 uppercase tracking-tighter line-clamp-1">{sub}</span>
     </div>
   );
 }
