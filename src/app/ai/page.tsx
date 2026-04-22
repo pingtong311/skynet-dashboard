@@ -64,20 +64,21 @@ export default function AIPage() {
               logs.map((log, i) => (
                 <div key={i} className={`flex gap-6 items-start group ${log.isAlert ? 'bg-cyan/5 -mx-4 px-4 py-3 rounded-xl border border-cyan/10' : ''}`}>
                   <span className="text-[10px] opacity-30 shrink-0 mt-1 font-bold">{log.time}</span>
-                <div className="flex flex-col gap-1">
-                  <span className={`text-[10px] font-black tracking-widest uppercase ${
-                    log.type === 'ALERT' ? 'text-red' : 
-                    log.type === 'THOUGHT' ? 'text-purple' : 
-                    log.type === 'SCAN' ? 'text-cyan' : 'text-green'
-                  }`}>
-                    [{log.type}]
-                  </span>
-                  <p className={`text-xs leading-relaxed transition-colors ${log.isAlert ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>
-                    {log.msg}
-                  </p>
+                  <div className="flex flex-col gap-1">
+                    <span className={`text-[10px] font-black tracking-widest uppercase ${
+                      log.type === 'ALERT' ? 'text-red' : 
+                      log.type === 'THOUGHT' ? 'text-purple' : 
+                      log.type === 'SCAN' ? 'text-cyan' : 'text-green'
+                    }`}>
+                      [{log.type}]
+                    </span>
+                    <p className={`text-xs leading-relaxed transition-colors ${log.isAlert ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>
+                      {log.msg}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
             
             <div className="pt-8 border-t border-glass-border">
               <div className="flex items-center gap-3 text-cyan animate-pulse">
