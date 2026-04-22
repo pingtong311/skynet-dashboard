@@ -51,17 +51,21 @@ export default function AIPage() {
           </div>
           
           <div className="p-8 h-[600px] overflow-y-auto space-y-6 font-mono scrollbar-hide">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50">
-                <div className="w-8 h-8 border-2 border-cyan border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-[10px] tracking-widest uppercase font-bold">Connecting to Skynet Neural Link...</p>
-              </div>
-            ) : logs.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500 text-[10px] uppercase tracking-widest">
-                No real-time insights available for current session.
-              </div>
-            ) : (
-              logs.map((log, i) => (
+            {(() => {
+              if (isLoading) return (
+                <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50">
+                  <div className="w-8 h-8 border-2 border-cyan border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[10px] tracking-widest uppercase font-bold">Connecting to Skynet Neural Link...</p>
+                </div>
+              );
+              
+              if (logs.length === 0) return (
+                <div className="flex items-center justify-center h-full text-gray-500 text-[10px] uppercase tracking-widest">
+                  No real-time insights available for current session.
+                </div>
+              );
+
+              return logs.map((log, i) => (
                 <div key={i} className={`flex gap-6 items-start group ${log.isAlert ? 'bg-cyan/5 -mx-4 px-4 py-3 rounded-xl border border-cyan/10' : ''}`}>
                   <span className="text-[10px] opacity-30 shrink-0 mt-1 font-bold">{log.time}</span>
                   <div className="flex flex-col gap-1">
@@ -77,8 +81,8 @@ export default function AIPage() {
                     </p>
                   </div>
                 </div>
-              ))
-            )}
+              ));
+            })()}
             
             <div className="pt-8 border-t border-glass-border">
               <div className="flex items-center gap-3 text-cyan animate-pulse">
