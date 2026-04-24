@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const N8N_ENDPOINT = 'https://primary-production-22702.up.railway.app/webhook/skynet-dashboard';
+const N8N_ENDPOINT = process.env.SKYNET_MONITORING_WEBHOOK_URL || 'https://primary-production-22702.up.railway.app/webhook/skynet-dashboard';
 
 export async function GET() {
   try {
@@ -35,11 +35,15 @@ export async function POST(request: Request) {
       body: JSON.stringify(body)
     });
 
+    if (!response.ok) {
+        throw new Error(`n8n responded with status: ${response.status}`);
+    }
+
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Reset API Error:', error);
-    return NextResponse.json({ success: false, error: 'Command failed' }, { status: 500 });
+    console.error('Action API Error:', error);
+    return NextResponse.json({ success: false, error: 'Command failed', details: error instanceof Error ? error.message : 'Unknown' }, { status: 500 });
   }
 }
 

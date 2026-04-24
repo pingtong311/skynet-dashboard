@@ -29,7 +29,7 @@ const POSITIONS = [
 ];
 
 export default function ReviewPage() {
-  const [config, setConfig] = useState({
+  const defaultConfig = {
     strategy: 'Skynet-Omni-V10',
     priceThreshold: 2000,
     stopLoss: 2.5,
@@ -39,9 +39,12 @@ export default function ReviewPage() {
     bbMult: 2.0,
     maxBias: 3.5,
     minPrice: 50,
+    minVolumeRatio: 1.5,
     initialCapital: 1000000,
-  });
+  };
 
+  const [config, setConfig] = useState(defaultConfig);
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const [monitoringData, setMonitoringData] = useState<any>(null);
   const [isDeploying, setIsDeploying] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -55,6 +58,12 @@ export default function ReviewPage() {
         const data = await response.json();
         setMonitoringData(data);
         setLastScanTime(new Date().toLocaleTimeString());
+      } else {
+        console.error('API Error:', response.statusText);
+        // Only alert if we don't already have some data to prevent annoying popups on every 30s poll
+        if (!monitoringData) {
+          alert('❌ 無法連線至 n8n 伺服器，請確認 Google Sheets 授權是否過期。');
+        }
       }
     } catch (error) {
       console.error('Failed to fetch monitoring data', error);
@@ -62,6 +71,15 @@ export default function ReviewPage() {
   };
 
   useEffect(() => {
+    const savedConfig = localStorage.getItem('skynet_config');
+    if (savedConfig) {
+      try {
+        setConfig(prev => ({ ...prev, ...JSON.parse(savedConfig) }));
+      } catch (e) {
+        console.error('Failed to parse saved config', e);
+      }
+    }
+    setIsConfigLoaded(true);
     setMounted(true);
     fetchMonitoringData();
     
@@ -71,23 +89,10 @@ export default function ReviewPage() {
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      const savedConfig = localStorage.getItem('skynet_config');
-      if (savedConfig) {
-        try {
-          setConfig(prev => ({ ...prev, ...JSON.parse(savedConfig) }));
-        } catch (e) {
-          console.error('Failed to parse saved config', e);
-        }
-      }
-    }
-  }, [mounted]);
-
-  useEffect(() => {
-    if (mounted) {
+    if (isConfigLoaded) {
       localStorage.setItem('skynet_config', JSON.stringify(config));
     }
-  }, [config, mounted]);
+  }, [config, isConfigLoaded]);
 
   const handleConfigChange = (field: string, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }));
@@ -151,9 +156,9 @@ export default function ReviewPage() {
   if (!mounted) return null;
 
   // Derive dynamic stats from monitoringData or defaults
-  const currentCapital = monitoringData?.currentCapital || 1024910;
-  const dailyPnL = monitoringData?.dailyPnL || 24910;
-  const totalProfit = monitoringData?.totalProfit || 158420;
+  const dailyPnL = monitoringData?.dailyPnL || 0;
+  const totalProfit = monitoringData?.totalProfit || 0;
+  const currentCapital = config.initialCapital + totalProfit;
   const pnlPercent = ((dailyPnL / config.initialCapital) * 100).toFixed(2);
   const isPnLPositive = dailyPnL >= 0;
 
@@ -214,8 +219,9 @@ export default function ReviewPage() {
           sub="歷史累計績效" 
           color="cyan" 
         />
-        <StatCard label="開盤監控時數" value="4 小時 30 分" sub="今日開盤執行進度" color="cyan" />
-        <StatCard label="當日選股次數" value={monitoringData?.scanCount || "12"} sub="今日觸發交易條件" color="gray" />
+         <StatCard label="當日選股次數" value={monitoringData?.scanCount || "0"} sub="今日觸發交易條件" color="gray" />
+        <StatCard label="監控模組狀態" value="生產環境" sub="Railway Cloud" color="green" />
+        <StatCard label="總監控信號" value={monitoringData?.positions?.length || "0"} sub="實時更新中" color="cyan" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -403,9 +409,19 @@ export default function ReviewPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 p-3 bg-black/20 rounded border border-glass-border">
+              <div className="grid grid-cols-4 gap-4 p-3 bg-black/20 rounded border border-glass-border">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-500 uppercase">BB Length</label>
+                  <label className="text-[10px] text-gray-500 uppercase">Vol Ratio</label>
+                  <input 
+                    type="number"
+                    step="0.1"
+                    value={config.minVolumeRatio}
+                    onChange={(e) => handleConfigChange('minVolumeRatio', parseFloat(e.target.value))}
+                    className="w-full bg-transparent text-xs font-mono outline-none"
+                  />
+                </div>
+                <div className="space-y-1 border-l border-glass-border pl-3">
+                  <label className="text-[10px] text-gray-500 uppercase">BB Len</label>
                   <input 
                     type="number"
                     value={config.bbLength}
