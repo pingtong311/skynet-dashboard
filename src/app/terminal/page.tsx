@@ -71,7 +71,7 @@ export default function TerminalPage() {
         responseData = await response.json();
       } else {
         // Otherwise route to n8n Gateway via local Proxy
-        const res = await fetch('/api/webhook', {
+        const res = await fetch('/api/terminal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 

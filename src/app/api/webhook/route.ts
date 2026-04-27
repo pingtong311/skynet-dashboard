@@ -4,8 +4,8 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
     
-    // Get the webhook URL from environment variable
-    const webhookUrl = process.env.NEXT_PUBLIC_SKYNET_WEBHOOK_URL;
+    // Get the webhook URL from environment variable or use the known working one
+    const webhookUrl = 'https://primary-production-22702.up.railway.app/webhook/skynet-terminal-sync-v1';
     
     if (!webhookUrl) {
       console.error('Webhook URL is not defined in environment variables');

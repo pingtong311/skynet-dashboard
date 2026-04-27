@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const N8N_ENDPOINT = process.env.SKYNET_MONITORING_WEBHOOK_URL || 'https://primary-production-22702.up.railway.app/webhook/skynet-dashboard';
+const N8N_ENDPOINT = 'https://primary-production-22702.up.railway.app/webhook/skynet-dashboard';
 
 export async function GET() {
   try {

@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     
     // Get the n8n webhook URL from environment variable
     // Priority: .env > fallback
-    const n8nUrl = process.env.NEXT_PUBLIC_SKYNET_WEBHOOK_URL || 'https://primary-production-22702.up.railway.app/webhook/skynet-terminal-gateway';
+    const n8nUrl = 'https://primary-production-22702.up.railway.app/webhook/skynet-terminal-sync-v1';
     
     console.log('Terminal Proxy: Sending command to n8n:', data.command);
     
