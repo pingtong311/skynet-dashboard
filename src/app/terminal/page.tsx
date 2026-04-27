@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Terminal, Send, Zap, Activity, Cpu, ShieldCheck } from 'lucide-react';
 
 type Message = {
   id: string;
@@ -69,16 +71,35 @@ export default function TerminalPage() {
         responseData = await response.json();
       } else {
         // Otherwise route to n8n Gateway via local Proxy
-        response = await fetch('/api/terminal', {
+        const res = await fetch('/api/webhook', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: JSON.stringify({ 
             command: currentInput,
-            source: 'dashboard-terminal',
-            timestamp: new Date().toISOString(),
+            chatId: 6375207034,
+            Source: 'Terminal'
           }),
         });
-        responseData = await response.json();
+
+        const data = await res.json();
+        
+        // Handle n8n response format (could be an array or object)
+        const n8nResponse = Array.isArray(data) ? data[0] : data;
+        const responseText = n8nResponse?.message || n8nResponse?.text || '報告指揮官，任務執行完畢，但未回傳具體結果。';
+
+        const assistantMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: responseText,
+          timestamp: new Date(),
+        };
+
+        if (!res.ok) {
+          throw new Error('伺服器連線失敗');
+        }
+
+        setMessages(prev => [...prev, assistantMsg]);
+        return;
       }
 
       if (!response.ok) {
@@ -130,14 +151,17 @@ export default function TerminalPage() {
       <div className="flex-1 flex gap-4 min-h-0">
         {/* Sidebar - Quick Actions */}
         <div className="hidden lg:flex flex-col gap-2 w-48">
-          <div className="metric-label px-2 mb-1">快速指令</div>
+          <div className="metric-label px-2 mb-1 flex items-center gap-2">
+            <Cpu size={12} className="text-cyan" /> 快速指令
+          </div>
           {quickCommands.map(qc => (
             <button
               key={qc.label}
               onClick={() => { setInput(qc.cmd); }}
-              className="px-3 py-2 text-left text-[11px] font-bold glass-panel hover:border-cyan/50 hover:text-cyan transition-all"
+              className="px-3 py-3 text-left text-[11px] font-bold glass-panel hover:border-cyan/50 hover:text-cyan hover:bg-cyan/5 transition-all group flex items-center justify-between"
             >
               {qc.label}
+              <Zap size={10} className="opacity-0 group-hover:opacity-100 text-yellow-400 transition-opacity" />
             </button>
           ))}
           
@@ -156,45 +180,55 @@ export default function TerminalPage() {
           {/* Output Window */}
           <div 
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-4 scrollbar-hide"
+            className="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-4 scrollbar-hide terminal-view"
           >
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-[10px] font-bold tracking-wider uppercase ${
-                    msg.role === 'user' ? 'text-purple' : msg.role === 'system' ? 'text-gray-500' : 'text-cyan'
+            <AnimatePresence mode="popLayout">
+              {messages.map((msg) => (
+                <motion.div 
+                  key={msg.id} 
+                  initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[10px] font-bold tracking-wider uppercase ${
+                      msg.role === 'user' ? 'text-purple' : msg.role === 'system' ? 'text-gray-500' : 'text-cyan'
+                    }`}>
+                      {msg.role}
+                    </span>
+                    <span className="text-[9px] text-gray-600">
+                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className={`max-w-[85%] px-4 py-2 rounded-lg text-sm leading-relaxed border transition-all ${
+                    msg.role === 'user' 
+                      ? 'bg-purple/10 border-purple/20 text-foreground' 
+                      : msg.role === 'system'
+                      ? 'bg-white/5 border-white/10 text-gray-400 italic'
+                      : 'bg-cyan/5 border-cyan/20 text-foreground glow-text-cyan'
                   }`}>
-                    {msg.role}
-                  </span>
-                  <span className="text-[9px] text-gray-600">
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </span>
-                </div>
-                <div className={`max-w-[85%] px-4 py-2 rounded-lg text-sm leading-relaxed ${
-                  msg.role === 'user' 
-                    ? 'bg-purple/10 border border-purple/20 text-foreground' 
-                    : msg.role === 'system'
-                    ? 'bg-white/5 border border-white/10 text-gray-400 italic'
-                    : 'bg-cyan/5 border border-cyan/20 text-foreground'
-                }`}>
-                  {msg.content}
-                  
-                  {/* Structured Data Result (Placeholder) */}
-                  {msg.data && (
-                    <div className="mt-3 pt-3 border-t border-white/10 overflow-x-auto">
-                      <pre className="text-[10px] text-cyan/80">
-                        {JSON.stringify(msg.data, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+                    {msg.content}
+                    
+                    {msg.data && (
+                      <div className="mt-3 pt-3 border-t border-white/10 overflow-x-auto">
+                        <pre className="text-[10px] text-cyan/80">
+                          {JSON.stringify(msg.data, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
             {isLoading && (
-              <div className="flex items-center gap-2 text-cyan">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center gap-2 text-cyan"
+              >
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse"></div>
-                <span className="text-[10px] font-bold animate-pulse">指令處理中...</span>
-              </div>
+                <span className="text-[10px] font-bold animate-pulse tracking-widest">SKYNET PROCESSING...</span>
+              </motion.div>
             )}
           </div>
 

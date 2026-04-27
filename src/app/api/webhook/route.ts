@@ -25,11 +25,8 @@ export async function POST(request: Request) {
       body: JSON.stringify(data),
     });
 
-    if (!response.ok) {
-      throw new Error(`n8n requested failed with status: ${response.status}`);
-    }
-
-    return NextResponse.json({ success: true, message: 'Settings successfully deployed to Skynet n8n.' });
+    const n8nData = await response.json();
+    return NextResponse.json(n8nData);
     
   } catch (error) {
     console.error('API Webhook Proxy Error:', error);

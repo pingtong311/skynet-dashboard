@@ -205,7 +205,7 @@ export default function StrategyPage() {
             onClick={handleDeploy}
             className={`glow-btn px-10 py-4 font-black rounded text-sm ${isDeploying ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {isDeploying ? 'SYNCING WITH CORE...' : '套用並執行模擬同步'}
+            {isDeploying ? 'DEPLOYING TO CORE...' : 'DEPLOY STRATEGY (套用並執行模擬同步)'}
           </button>
         </div>
       </div>
