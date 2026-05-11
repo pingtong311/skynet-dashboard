@@ -220,7 +220,7 @@
     - 頂部狀態列在 `permission === 'granted'` 時顯示「🔔 通知已啟用」標籤
     - _Requirements: 4.3, 4.4, 4.5, 4.10_
 
-- [~] 15. Final Checkpoint — 確認所有功能正常運作
+- [x] 15. Final Checkpoint — 確認所有功能正常運作
   - 確保所有測試通過，確認四個 Phase 功能完整，詢問使用者是否有問題。
 
 ---

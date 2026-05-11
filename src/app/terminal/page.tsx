@@ -19,13 +19,13 @@ const INIT_MESSAGES: Message[] = [
   {
     id: '1',
     role: 'system',
-    content: '天網系統控制終端 (SKYNET TERMINAL v10.2) 已就緒...',
+    content: '天網系統控制終端 (SKYNET TERMINAL v10.3) 已就緒...',
     timestamp: new Date().toISOString(),
   },
   {
     id: '2',
     role: 'system',
-    content: '輸入股票代號（如 2330）進行深度 AI 分析，或輸入「分析目前盤勢」、「今日市場看法」等自然語言指令。',
+    content: '輸入股票代號（如 2330）→ 直接顯示完整 AI 戰報。\n輸入自然語言（如「分析目前盤勢」）→ 結果推送至 Telegram。',
     timestamp: new Date().toISOString(),
   },
 ];
@@ -73,15 +73,24 @@ export default function TerminalPage() {
     try { sessionStorage.removeItem(SESSION_KEY); } catch {}
   };
 
-  const handleSubmitWithCommand = async (cmd: string) => {
-    if (!cmd.trim() || isLoading) return;
-    setInput(cmd);
-    // Use a small timeout to let React flush the state update before submitting
-    await new Promise<void>(resolve => setTimeout(resolve, 0));
-    await handleSubmitCommand(cmd);
+  // 格式化 Omni 結構化戰報為可讀文字
+  const formatBattleReport = (d: Record<string, unknown>): string => {
+    const icon = d.action === 'BUY' ? '🟢' : d.action === 'SELL' ? '🔴' : '⚪';
+    const lines: string[] = [
+      `${icon} ${d.name || ''} (${d.ticker || ''})｜${d.action || 'WAIT'}`,
+      `━━━━━━━━━━━━━━━━`,
+      `💰 現價：${d.price || '--'}`,
+      `🎯 目標：${d.target || '--'}　🛡 防守：${d.stopLoss || '--'}`,
+      `📊 策略：${d.strategyType || '--'}｜動能 ${d.momentum || '--'}｜信心 ${d.confidence || 0}%`,
+    ];
+    if (d.verdictTitle) lines.push(`\n📌 ${d.verdictTitle}`);
+    if (d.todayView) lines.push(`\n今日表現：\n${d.todayView}`);
+    if (d.reason) lines.push(`\n🧠 專家分析：\n${d.reason}`);
+    if (d.maAlignment) lines.push(`\n📈 均線排列：${d.maAlignment}`);
+    return lines.join('\n');
   };
 
-  const handleSubmitCommand = async (cmd: string) => {
+  const executeCommand = async (cmd: string) => {
     if (!cmd.trim() || isLoading) return;
 
     const userMessage: Message = {
@@ -90,66 +99,58 @@ export default function TerminalPage() {
       content: cmd,
       timestamp: new Date().toISOString(),
     };
-
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
     try {
-      let response;
-      let responseData;
-
-      if (cmd.endsWith('?')) {
-        response = await fetch('/api/flowise', {
+      // 股票代號（4-6位數字）→ 同步 AI 分析，直接顯示完整戰報
+      if (/^\d{4,6}$/.test(cmd.trim())) {
+        const res = await fetch('/api/skynet/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: cmd }),
+          body: JSON.stringify({ ticker: cmd.trim() }),
         });
-        responseData = await response.json();
-      } else {
-        const res = await fetch('/api/terminal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            command: cmd,
-            chatId: 6375207034,
-            Source: 'Terminal'
-          }),
-        });
-
         const data = await res.json();
-        const n8nResponse = Array.isArray(data) ? data[0] : data;
-        const responseText = n8nResponse?.message || n8nResponse?.text || '報告指揮官，任務執行完畢，但未回傳具體結果。';
 
-        const assistantMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: responseText,
-          timestamp: new Date().toISOString(),
-        };
-
-        if (!res.ok) {
-          throw new Error('伺服器連線失敗');
+        let content: string;
+        if (data.action) {
+          content = formatBattleReport(data as Record<string, unknown>);
+        } else if (data.error === 'analysis_timeout') {
+          content = '⏱ 分析逾時（超過 60 秒），請稍後再試。TG 可能仍有回報。';
+        } else if (data.error === 'upstream_error') {
+          content = '⚠️ n8n 服務暫時無法連線，請稍後再試。';
+        } else {
+          content = data.message || data.error || '分析完成，請查看 Telegram 回報。';
         }
 
-        setMessages(prev => [...prev, assistantMsg]);
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content,
+          timestamp: new Date().toISOString(),
+          data: data.action ? data : null,
+        }]);
         return;
       }
 
-      if (!response.ok) {
-        const errorData = responseData || {};
-        throw new Error(errorData.error || '伺服器連線失敗');
-      }
+      // 自然語言指令 → 走 /api/terminal（推 TG，非同步）
+      const res = await fetch('/api/terminal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd, chatId: 6375207034, Source: 'Terminal' }),
+      });
+      const data = await res.json();
+      const n8nResponse = Array.isArray(data) ? data[0] : data;
+      const responseText = n8nResponse?.message || n8nResponse?.text || '指令已送達，請查看 Telegram 回報。';
 
-      const assistantMessage: Message = {
+      setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: responseData.text || responseData.message || '指令執行成功。',
+        content: responseText,
         timestamp: new Date().toISOString(),
-        data: responseData.result || null,
-      };
+      }]);
 
-      setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -162,91 +163,15 @@ export default function TerminalPage() {
     }
   };
 
+  const handleSubmitWithCommand = async (cmd: string) => {
+    if (!cmd.trim() || isLoading) return;
+    await executeCommand(cmd);
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    const currentInput = input;
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      let response;
-      let responseData;
-
-      // If the command ends with '?', route to Flowise AI Brain
-      if (currentInput.endsWith('?')) {
-        response = await fetch('/api/flowise', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: currentInput }),
-        });
-        responseData = await response.json();
-      } else {
-        // Otherwise route to n8n Gateway via local Proxy
-        const res = await fetch('/api/terminal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            command: currentInput,
-            chatId: 6375207034,
-            Source: 'Terminal'
-          }),
-        });
-
-        const data = await res.json();
-        
-        // Handle n8n response format (could be an array or object)
-        const n8nResponse = Array.isArray(data) ? data[0] : data;
-        const responseText = n8nResponse?.message || n8nResponse?.text || '報告指揮官，任務執行完畢，但未回傳具體結果。';
-
-        const assistantMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: responseText,
-          timestamp: new Date().toISOString(),
-        };
-
-        if (!res.ok) {
-          throw new Error('伺服器連線失敗');
-        }
-
-        setMessages(prev => [...prev, assistantMsg]);
-        return;
-      }
-
-      if (!response.ok) {
-        const errorData = responseData || {};
-        throw new Error(errorData.error || '伺服器連線失敗');
-      }
-      
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: responseData.text || responseData.message || '指令執行成功。',
-        timestamp: new Date().toISOString(),
-        data: responseData.result || null,
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'system',
-        content: `⚠️ 錯誤: ${error instanceof Error ? error.message : '連線逾時，請檢查伺服器狀態。'}`,
-        timestamp: new Date().toISOString(),
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
+    await executeCommand(input);
   };
 
   const quickCommands: Array<{ label: string; cmd?: string; href?: string }> = [
