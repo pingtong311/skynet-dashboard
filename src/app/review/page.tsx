@@ -1,553 +1,720 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Activity, 
-  Target, 
-  TrendingUp, 
-  Cpu, 
-  ShieldCheck, 
-  Zap, 
-  Terminal, 
-  RefreshCw, 
-  AlertTriangle,
-  ChevronRight,
+import { useEffect, useState, useCallback } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import {
+  Activity,
+  Bell,
+  Bot,
+  BrainCircuit,
+  CheckCircle2,
+  Clock3,
+  Crosshair,
   Database,
-  BarChart3,
+  Grid3X3,
+  LineChart,
+  RefreshCw,
   Search,
-  Settings2,
-  Crosshair
+  ShieldCheck,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Zap,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
+import KLinePanel from '@/components/KLinePanel';
 
-// Dynamically import Recharts to avoid SSR issues
-const AreaChart = dynamic(() => import('recharts').then(mod => mod.AreaChart), { ssr: false });
-const Area = dynamic(() => import('recharts').then(mod => mod.Area), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
-const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
+// ── 型別定義 ──────────────────────────────────────────
+type BattleReport = {
+  ticker: string;
+  name: string;
+  price: string;
+  action: 'BUY' | 'WAIT' | 'SELL';
+  confidence: number;
+  target: string;
+  stopLoss: string;
+  strategyType: string;
+  momentum: string;
+  verdictTitle: string;
+  todayView: string;
+  reason: string;
+  date: string;
+  signalTime?: string;
+  maAlignment?: string;
+  bbUpper?: string;
+  bbLower?: string;
+  ma60?: string;
+  targetBasis?: string;
+  stopBasis?: string;
+};
 
-const ASSET_DATA = [
-  { time: '09:00', value: 1000000 },
-  { time: '10:00', value: 1002500 },
-  { time: '11:00', value: 1008200 },
-  { time: '12:00', value: 1005800 },
-  { time: '13:00', value: 1017100 },
-  { time: '13:30', value: 1024910 },
+type SniperCandidate = {
+  ticker: string;
+  name: string;
+  triggerPrice: string;
+  stopPrice: string;
+  currentPrice?: string;
+  status: string;
+  confidence: string;
+  source: string;
+  date: string;
+};
+
+type WarRoomData = {
+  focusTags: string;
+  avoidTags: string;
+  bullScore: number;
+  mentionedStocks: string[];
+  summary: string;
+  date: string;
+};
+
+type AnalysisResult = {
+  ticker: string;
+  name?: string;
+  price?: string;
+  action?: string;
+  confidence?: number;
+  target?: string;
+  stopLoss?: string;
+  strategyType?: string;
+  momentum?: string;
+  verdictTitle?: string;
+  todayView?: string;
+  reason?: string;
+  message?: string;
+  status?: string;
+  error?: string;
+};
+
+// ── 側邊欄選單 ────────────────────────────────────────
+const navItems = [
+  { id: 'overview', label: '今日戰報', icon: Grid3X3 },
+  { id: 'analyze', label: 'AI 查詢', icon: BrainCircuit },
+  { id: 'sniper', label: '狙擊清單', icon: Crosshair },
+  { id: 'warroom', label: '大盤情報', icon: Activity },
+  { id: 'strategy', label: '策略設定', icon: ShieldCheck },
 ];
 
-const POSITIONS_MOCK = [
-  { id: '2330', name: '台積電', Action: 'BUY', Entry_Price: 1030, Price: 1045, Profit: '+1.45%', time: '09:15:00', Status: '持有中' },
-  { id: '2317', name: '鴻海', Action: 'BUY', Entry_Price: 200, Price: 205, Profit: '+2.50%', time: '09:45:12', Status: '持有中' },
-  { id: '2454', name: '聯發科', Action: 'WAIT', Entry_Price: 1250, Price: 1245, Profit: '-0.40%', time: '10:30:05', Status: '觀察中' },
-];
-
+// ── 主頁面 ────────────────────────────────────────────
 export default function ReviewPage() {
-  const [config, setConfig] = useState({
-    strategy: 'Skynet-Omni-V10',
-    initialCapital: 1000000,
-    minPrice: 20,
-    priceThreshold: 3000,
-    stopLoss: 1.5,
-    takeProfit: 3.0,
-    minVolumeRatio: 1.0,
-    bbLength: 20,
-    bbMult: 2.0,
-    maxBias: 3.5,
-    isDayTrading: true,
-  });
+  const [activeTab, setActiveTab] = useState('overview');
+  const [now, setNow] = useState('');
+  const [lastRefresh, setLastRefresh] = useState('--:--:--');
 
-  const [monitoringData, setMonitoringData] = useState<any>(null);
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-  const [lastScanTime, setLastScanTime] = useState('');
-  const [mounted, setMounted] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const fetchMonitoringData = async () => {
-    try {
-      const response = await fetch('/api/skynet/monitoring');
-      if (response.ok) {
-        const data = await response.json();
-        setMonitoringData(data);
-        setLastScanTime(new Date().toLocaleTimeString());
-      }
-    } catch (error) {
-      console.error('Fetch error:', error);
-    }
-  };
-
+  // 支援 URL 參數 ?tab=xxx 直接切換 Tab
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem('skynet_config');
-    if (saved) setConfig(JSON.parse(saved));
-    fetchMonitoringData();
-    const interval = setInterval(fetchMonitoringData, 5000); // 5s refresh for real-time feedback
-    return () => clearInterval(interval);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab && navItems.some(n => n.id === tab)) {
+        setActiveTab(tab);
+      }
+    }
   }, []);
 
-  useEffect(() => {
-    if (mounted) localStorage.setItem('skynet_config', JSON.stringify(config));
-  }, [config, mounted]);
+  // 今日戰報
+  const [reports, setReports] = useState<BattleReport[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [monitoringData?.thoughts]);
+  // 狙擊清單
+  const [snipers, setSnipers] = useState<SniperCandidate[]>([]);
+  const [snipersLoading, setSnipersLoading] = useState(false);
 
-  const handleDeploy = async () => {
-    setIsDeploying(true);
+  // 大盤情報
+  const [warRoom, setWarRoom] = useState<WarRoomData | null>(null);
+  const [warRoomLoading, setWarRoomLoading] = useState(false);
+
+  // AI 查詢
+  const [queryTicker, setQueryTicker] = useState('');
+  const [queryLoading, setQueryLoading] = useState(false);
+  const [queryResult, setQueryResult] = useState<AnalysisResult | null>(null);
+  const [queryHistory, setQueryHistory] = useState<AnalysisResult[]>([]);
+
+  // K 線圖面板
+  const [klineTicker, setKlineTicker] = useState<string | null>(null);
+
+  // 時鐘
+  useEffect(() => {
+    const tick = () => {
+      setNow(new Date().toLocaleTimeString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 讀取今日戰報
+  const fetchReports = useCallback(async () => {
+    setReportsLoading(true);
     try {
-      await fetch('/api/webhook', {
+      const res = await fetch('/api/skynet/warroom?type=battle_reports');
+      const data = await res.json();
+      if (data.reports) setReports(data.reports);
+    } catch (e) {
+      console.error('Failed to fetch reports', e);
+    } finally {
+      setReportsLoading(false);
+      setLastRefresh(new Date().toLocaleTimeString('zh-TW', { hour12: false }));
+    }
+  }, []);
+
+  // 讀取狙擊清單
+  const fetchSnipers = useCallback(async () => {
+    setSnipersLoading(true);
+    try {
+      const res = await fetch('/api/skynet/warroom?type=snipers');
+      const data = await res.json();
+      if (data.snipers) setSnipers(data.snipers);
+    } catch (e) {
+      console.error('Failed to fetch snipers', e);
+    } finally {
+      setSnipersLoading(false);
+    }
+  }, []);
+
+  // 讀取大盤情報
+  const fetchWarRoom = useCallback(async () => {
+    setWarRoomLoading(true);
+    try {
+      const res = await fetch('/api/skynet/warroom?type=alpha');
+      const data = await res.json();
+      if (data.warRoom) setWarRoom(data.warRoom);
+    } catch (e) {
+      console.error('Failed to fetch war room', e);
+    } finally {
+      setWarRoomLoading(false);
+    }
+  }, []);
+
+  // 切換 tab 時載入對應資料
+  useEffect(() => {
+    if (activeTab === 'overview') fetchReports();
+    if (activeTab === 'sniper') fetchSnipers();
+    if (activeTab === 'warroom') fetchWarRoom();
+  }, [activeTab, fetchReports, fetchSnipers, fetchWarRoom]);
+
+  // AI 查詢
+  const handleAnalyze = async () => {
+    const ticker = queryTicker.trim();
+    if (!ticker || queryLoading) return;
+    if (!/^\d{4,6}$/.test(ticker)) {
+      setQueryResult({ ticker, error: '請輸入有效的台股代號（4-6位數字）' });
+      return;
+    }
+
+    setQueryLoading(true);
+    setQueryResult(null);
+
+    try {
+      const res = await fetch('/api/skynet/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...config, action: 'SYNC_AI_LOGIC' }),
+        body: JSON.stringify({ ticker }),
       });
-      alert('✅ 戰略配置同步成功');
+      const data = await res.json();
+      const result: AnalysisResult = { ticker, ...data };
+      setQueryResult(result);
+      setQueryHistory(prev => [result, ...prev.slice(0, 4)]);
+    } catch {
+      setQueryResult({ ticker, error: '分析服務暫時無法連線，請稍後再試。' });
     } finally {
-      setIsDeploying(false);
+      setQueryLoading(false);
     }
   };
 
-  const handleReset = async () => {
-    if (!confirm('⚠️ 重設模擬本金？')) return;
-    setIsResetting(true);
-    try {
-      await fetch('/api/skynet/monitoring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'RESET_CAPITAL', principal: config.initialCapital }),
-      });
-      fetchMonitoringData();
-    } finally {
-      setIsResetting(false);
-    }
+  const handleRefresh = () => {
+    if (activeTab === 'overview') fetchReports();
+    if (activeTab === 'sniper') fetchSnipers();
+    if (activeTab === 'warroom') fetchWarRoom();
   };
 
-  if (!mounted) return null;
+  // K 線圖面板控制
+  const openKLine = useCallback((ticker: string) => {
+    if (!/^\d{4,6}$/.test(ticker)) return;
+    setKlineTicker(ticker);
+  }, []);
 
-  const dailyPnL = monitoringData?.dailyPnL || 0;
-  const totalProfit = monitoringData?.totalProfit || 0;
-  const currentCapital = config.initialCapital + totalProfit;
-  const pnlPercent = ((dailyPnL / config.initialCapital) * 100).toFixed(2);
+  const closeKLine = useCallback(() => {
+    setKlineTicker(null);
+  }, []);
 
   return (
-    <div className="min-h-screen pb-10 pt-4 px-4 max-w-[1600px] mx-auto overflow-hidden">
-      {/* Top Navigation / Header */}
-      <motion.header 
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4"
-      >
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-cyan/10 border border-cyan/30 rounded-xl flex items-center justify-center glow-text-cyan">
-            <Cpu size={28} className="text-cyan" />
-          </div>
+    <main className="quant-shell">
+      {/* ── 側邊欄 ── */}
+      <aside className="quant-sidebar">
+        <div className="brand-row">
+          <div className="brand-mark"><Activity size={18} /></div>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter flex items-center gap-2">
-              SKYNET <span className="text-cyan font-light opacity-50">/</span> <span className="text-sm font-bold tracking-[0.3em] uppercase text-gray-400">Tactical Command</span>
-            </h1>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="status-indicator status-online"></span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-green/80">Active Monitoring Mode</span>
-            </div>
+            <p className="brand-title">SKYNET</p>
+            <p className="brand-sub">TAIPEI QUANT</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="glass-panel px-4 py-2 flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest">
-            <div className="flex items-center gap-2 border-r border-glass-border pr-4">
-              <RefreshCw size={12} className="text-cyan animate-spin-slow" />
-              <span className="text-gray-500">Last Scan</span>
-              <span className="font-mono text-cyan">{lastScanTime || '--:--:--'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Database size={12} className="text-purple" />
-              <span className="text-gray-500">Source</span>
-              <span className="text-purple">Railway Cloud</span>
-            </div>
-          </div>
-          <button 
-            onClick={fetchMonitoringData}
-            className="w-10 h-10 glass-panel flex items-center justify-center hover:bg-cyan/10 hover:text-cyan transition-all"
-          >
-            <RefreshCw size={18} />
-          </button>
-        </div>
-      </motion.header>
-
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: KPI & Strategy */}
-        <div className="lg:col-span-3 space-y-6">
-          <motion.div 
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="space-y-4"
-          >
-            <StatCard 
-              icon={<TrendingUp size={16} />}
-              label="模擬淨資產" 
-              value={`${currentCapital.toLocaleString()}`} 
-              sub="TWD"
-              trend={totalProfit >= 0 ? `+${totalProfit.toLocaleString()}` : totalProfit.toLocaleString()}
-              color={totalProfit >= 0 ? "cyan" : "red"}
-            />
-            <StatCard 
-              icon={<Activity size={16} />}
-              label="今日模擬盈虧" 
-              value={`${dailyPnL >= 0 ? '+' : ''}${dailyPnL.toLocaleString()}`} 
-              sub={`${pnlPercent}%`}
-              color={dailyPnL >= 0 ? "green" : "red"}
-            />
-          </motion.div>
-
-          {/* Strategy Panel */}
-          <motion.div 
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="glass-panel p-5 bg-cyan/5 border-cyan/20"
-          >
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] mb-6 flex items-center gap-2 text-cyan">
-              <Settings2 size={14} /> 戰略控制台
-            </h3>
-            
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <label className="metric-label">AI 決策引擎</label>
-                <div className="relative">
-                  <select 
-                    value={config.strategy}
-                    onChange={(e) => setConfig({...config, strategy: e.target.value})}
-                    className="w-full bg-black/60 border border-glass-border rounded-lg p-2.5 text-xs focus:border-cyan outline-none appearance-none font-bold"
-                  >
-                    <option value="Skynet-Omni-V10">Skynet-Omni V10 (全能型)</option>
-                    <option value="IntradayScanner">當沖精準選股 (極速型)</option>
-                  </select>
-                  <ChevronRight size={14} className="absolute right-3 top-3 text-gray-500 rotate-90" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="metric-label">最高價限</label>
-                  <input 
-                    type="number"
-                    value={config.priceThreshold}
-                    onChange={(e) => setConfig({...config, priceThreshold: parseInt(e.target.value)})}
-                    className="w-full bg-black/40 border border-glass-border rounded-lg p-2 text-xs font-mono outline-none focus:border-cyan"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="metric-label">最低量比</label>
-                  <input 
-                    type="number"
-                    step="0.1"
-                    value={config.minVolumeRatio}
-                    onChange={(e) => setConfig({...config, minVolumeRatio: parseFloat(e.target.value)})}
-                    className="w-full bg-black/40 border border-glass-border rounded-lg p-2 text-xs font-mono outline-none focus:border-cyan"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-glass-border mt-2">
-                <div className="flex items-center gap-2">
-                  <Zap size={14} className={config.isDayTrading ? 'text-yellow-400' : 'text-gray-500'} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">當沖自動掃描</span>
-                </div>
-                <button 
-                  onClick={() => setConfig({...config, isDayTrading: !config.isDayTrading})}
-                  className={`w-10 h-5 rounded-full relative transition-all ${config.isDayTrading ? 'bg-cyan' : 'bg-gray-700'}`}
-                >
-                  <motion.div 
-                    animate={{ x: config.isDayTrading ? 20 : 0 }}
-                    className="absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-lg"
-                  />
-                </button>
-              </div>
-
-              <div className="pt-2 flex flex-col gap-3">
-                <button 
-                  onClick={handleDeploy}
-                  disabled={isDeploying}
-                  className="glow-btn w-full py-3.5 text-[11px] flex items-center gap-2"
-                >
-                  {isDeploying ? <RefreshCw size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                  Deploy Strategy
-                </button>
-                <button 
-                  onClick={handleReset}
-                  className="text-[10px] uppercase font-bold text-gray-500 hover:text-red transition-colors flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={10} /> Reset Principal
-                </button>
-              </div>
-            </div>
-          </motion.div>
+        <p className="sidebar-label">功能模組</p>
+        <div className="side-nav">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`side-link ${activeTab === item.id ? 'active' : ''}`}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Center Column: Charts & Positions */}
-        <div className="lg:col-span-6 space-y-6">
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="glass-panel p-6 h-[350px]"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-3">
-                <BarChart3 size={18} className="text-cyan" />
-                <h2 className="text-xs font-black uppercase tracking-[0.2em]">資產增長曲線 (模擬)</h2>
-              </div>
-              <div className="flex gap-4">
-                <span className="text-[9px] bg-cyan/10 text-cyan px-2 py-0.5 rounded border border-cyan/20">LIVE FEED</span>
-              </div>
-            </div>
-            <div className="h-[240px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monitoringData?.assetHistory || ASSET_DATA}>
-                  <defs>
-                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--accent-cyan)" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="var(--accent-cyan)" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="time" stroke="#4b5563" fontSize={9} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#4b5563" fontSize={9} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px' }}
-                    itemStyle={{ color: 'var(--accent-cyan)' }}
-                  />
-                  <Area type="monotone" dataKey="value" stroke="var(--accent-cyan)" strokeWidth={3} fillOpacity={1} fill="url(#chartGradient)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="glass-panel p-6"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-3">
-                <Crosshair size={18} className="text-red" />
-                <h2 className="text-xs font-black uppercase tracking-[0.2em]">實時模擬部位監控</h2>
-              </div>
-              <span className="text-[10px] text-gray-500 font-mono">Count: {(monitoringData?.positions || []).length}</span>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-gray-500 border-b border-glass-border uppercase text-[9px] tracking-widest font-black">
-                    <th className="pb-4">Ticker</th>
-                    <th className="pb-4">Action</th>
-                    <th className="pb-4">五檔力道</th>
-                    <th className="pb-4">Entry</th>
-                    <th className="pb-4">Current</th>
-                    <th className="pb-4">PnL</th>
-                    <th className="pb-4 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-glass-border">
-                  {(monitoringData?.positions || POSITIONS_MOCK).map((pos: any, i: number) => (
-                    <motion.tr 
-                      key={i} 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="group hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="py-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-black">{pos.Ticker || pos.id}</span>
-                          <span className="text-[10px] text-gray-500 font-bold">{pos.Name || pos.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <span className={`px-2 py-0.5 rounded-[4px] text-[9px] font-black uppercase ${pos.Action === 'SELL' ? 'bg-red/10 text-red border border-red/20' : 'bg-cyan/10 text-cyan border border-cyan/20'}`}>
-                          {pos.Action || pos.type}
-                        </span>
-                      </td>
-                      <td className="py-4">
-                        <div className="flex items-center gap-1">
-                          <div className="flex gap-0.5">
-                            {[1, 2, 3, 4, 5].map(v => (
-                              <div key={v} className={`w-1.5 h-3 rounded-sm ${v <= (pos.BidAskRatio || 3) ? 'bg-cyan' : 'bg-gray-800'}`} />
-                            ))}
-                          </div>
-                          <span className="text-[9px] font-mono text-cyan ml-1">+{pos.Momentum || '2.4'}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 font-mono text-xs">{pos.Entry_Price || pos.price}</td>
-                      <td className="py-4 font-mono text-xs text-cyan glow-text-cyan">{pos.Price || pos.current}</td>
-                      <td className={`py-4 font-mono text-xs font-bold ${(pos.Profit || pos.profit || '').includes('+') ? 'text-green' : 'text-red'}`}>
-                        {pos.Profit || pos.profit}
-                      </td>
-                      <td className="py-4 text-right">
-                        <span className="text-[9px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">
-                          {pos.Status || 'Active'}
-                        </span>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-              {(!monitoringData?.positions && POSITIONS_MOCK.length === 0) && (
-                <div className="py-12 text-center">
-                  <Activity size={32} className="mx-auto text-gray-700 mb-3 animate-pulse" />
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest italic">Waiting for market signals...</p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Right Column: AI Log & Sentiment */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Sentiment Gauge */}
-          <motion.div 
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="glass-panel p-5 text-center"
-          >
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-gray-500">市場風險情緒 (模擬)</h3>
-            <div className="relative w-32 h-32 mx-auto">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-800" />
-                <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray="364.4" strokeDashoffset={364.4 * (1 - 0.72)} className="text-cyan drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-black font-mono">72</span>
-                <span className="text-[8px] uppercase tracking-widest text-cyan">OPTIMISTIC</span>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* AI Terminal Log */}
-          <motion.div 
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="glass-panel terminal-view flex flex-col h-[525px]"
-          >
-            <div className="p-3 border-b border-white/5 flex justify-between items-center bg-black/40">
-              <div className="flex items-center gap-2">
-                <Terminal size={14} className="text-cyan" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-cyan/80">AI Cognitive Stream</span>
-              </div>
-              <div className="flex gap-1">
-                <div className="w-2 h-2 rounded-full bg-red/30"></div>
-                <div className="w-2 h-2 rounded-full bg-yellow-400/30"></div>
-                <div className="w-2 h-2 rounded-full bg-green/30"></div>
-              </div>
-            </div>
-            
-            <div 
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-[10px] scroll-smooth"
-            >
-              <AnimatePresence mode="popLayout">
-                {(monitoringData?.thoughts || [
-                  "INITIALIZING SKYNET COGNITIVE ENGINE...",
-                  "CORE-V10 ONLINE. CONNECTING TO RAILWAY-N8N...",
-                  "SCANNING HISTOCK HOT LIST (15 TICKERS)...",
-                  "MATCHING FOCUS_TAGS: [記憶體, 半導體]...",
-                  "VOL_RATIO CALCULATION COMPLETED.",
-                  "READY FOR TACTICAL DEPLOYMENT."
-                ]).map((t: any, i: number) => (
-                  <motion.div 
-                    key={i}
-                    initial={{ x: -10, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    className="flex gap-3 text-gray-400 leading-relaxed group"
-                  >
-                    <span className="text-cyan/40 shrink-0 select-none">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
-                    <p className="group-hover:text-cyan transition-colors">
-                      {typeof t === 'string' ? t : (t.text || t.toString())}
-                    </p>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-
-            <div className="p-3 border-t border-white/5 bg-black/20 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-cyan animate-pulse">_</span>
-                <span className="text-[8px] text-gray-600 uppercase font-black">System Ready. Awaiting next cycle.</span>
-              </div>
-              <div className="text-[8px] font-bold text-cyan/40">LATENCY: 42ms</div>
-            </div>
-          </motion.div>
-
-          {/* New: Intraday Momentum Monitor (Five-Level Quote) */}
-          <motion.div 
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="glass-panel p-5"
-          >
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-              <Zap size={14} className="text-yellow-400" /> 五檔即時動能監測
-            </h3>
-            <div className="space-y-3">
-              {[
-                { ticker: '2330', name: '台積電', momentum: 85, bid: 450, ask: 120 },
-                { ticker: '2317', name: '鴻海', momentum: 92, bid: 890, ask: 45 },
-                { ticker: '2454', name: '聯發科', momentum: 42, bid: 120, ask: 180 },
-              ].map((m, i) => (
-                <div key={i} className="flex flex-col gap-1.5">
-                  <div className="flex justify-between text-[9px] font-bold">
-                    <span>{m.ticker} {m.name}</span>
-                    <span className="text-cyan">{m.momentum}% Strength</span>
-                  </div>
-                  <div className="flex h-1.5 w-full bg-red/20 rounded-full overflow-hidden">
-                    <div className="bg-cyan h-full" style={{ width: `${(m.bid / (m.bid + m.ask)) * 100}%` }} />
-                  </div>
-                </div>
+        {/* 快速查詢歷史 */}
+        {queryHistory.length > 0 && (
+          <>
+            <p className="sidebar-label" style={{ marginTop: '1.5rem' }}>最近查詢</p>
+            <div className="side-nav">
+              {queryHistory.map((h, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setQueryTicker(h.ticker); setActiveTab('analyze'); setQueryResult(h); }}
+                  className="side-link"
+                >
+                  <Search size={14} />
+                  <span>{h.ticker} {h.name || ''}</span>
+                </button>
               ))}
             </div>
-          </motion.div>
-        </div>
-      </div>
+          </>
+        )}
+      </aside>
 
-      {/* Background Decor */}
-      <div className="fixed bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-cyan/5 to-transparent pointer-events-none -z-10" />
+      {/* ── 主區域 ── */}
+      <section className="quant-main">
+        {/* 頂部狀態列 */}
+        <header className="quant-topbar">
+          <div className="status-cluster">
+            <span className="pill good"><CheckCircle2 size={15} /> API 已連接</span>
+            <span className="pill good"><Activity size={15} /> 引擎運行中</span>
+            <span className="pill muted"><Clock3 size={15} /> 台北 {now}</span>
+          </div>
+          <div className="operator-zone">
+            <button className="icon-button" onClick={handleRefresh} aria-label="刷新">
+              <RefreshCw size={17} />
+            </button>
+            <Bell size={17} className="text-slate-400" />
+            <span className="operator">最後刷新 {lastRefresh}</span>
+          </div>
+        </header>
+
+        {/* K 線圖面板 */}
+        <AnimatePresence>
+          {klineTicker && (
+            <KLinePanel ticker={klineTicker} onClose={closeKLine} />
+          )}
+        </AnimatePresence>
+
+        {/* ── 今日戰報 ── */}
+        {activeTab === 'overview' && (          <div className="board-content">
+            <div className="board-heading">
+              <div className="heading-icon"><Grid3X3 size={24} /></div>
+              <div>
+                <h1>今日 AI 戰報</h1>
+                <p>Omni 今日分析結果，含 4 位專家觀點與操作節奏。</p>
+              </div>
+            </div>
+
+            {reportsLoading ? (
+              <LoadingState text="載入今日戰報中..." />
+            ) : reports.length === 0 ? (
+              <EmptyState
+                icon={<Database size={32} />}
+                title="今日尚無戰報"
+                desc="Beta 晨間選股完成後，Omni 分析結果會顯示在這裡。"
+              />
+            ) : (
+              <div className="candidate-grid">
+                {reports.map((r, i) => (
+                  <BattleCard key={i} report={r} onAnalyze={(t) => { setQueryTicker(t); setActiveTab('analyze'); }} onKLine={openKLine} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── AI 查詢視窗 ── */}
+        {activeTab === 'analyze' && (
+          <div className="board-content">
+            <div className="board-heading">
+              <div className="heading-icon"><BrainCircuit size={24} /></div>
+              <div>
+                <h1>AI 深度查詢</h1>
+                <p>輸入台股代號，天網 Omni 引擎即時分析，4 位專家觀點一次呈現。</p>
+              </div>
+            </div>
+
+            {/* 查詢輸入 */}
+            <div className="analyze-input-row">
+              <div className="analyze-input-wrap">
+                <Search size={18} className="analyze-icon" />
+                <input
+                  type="text"
+                  value={queryTicker}
+                  onChange={(e) => setQueryTicker(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+                  placeholder="輸入代號，例如 2330"
+                  className="analyze-input"
+                  maxLength={6}
+                />
+              </div>
+              <button
+                onClick={handleAnalyze}
+                disabled={queryLoading || !queryTicker}
+                className="analyze-btn"
+              >
+                {queryLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                {queryLoading ? '分析中...' : '立即分析'}
+              </button>
+            </div>
+
+            {/* 快速標的 */}
+            <div className="quick-tickers">
+              {['2330', '2317', '2454', '2382', '3008', '2308'].map(t => (
+                <button key={t} onClick={() => { setQueryTicker(t); }} className="quick-ticker-btn">
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            {/* 分析結果 */}
+            {queryLoading && <LoadingState text={`正在呼叫天網 Omni 分析 ${queryTicker}...`} />}
+
+            {queryResult && !queryLoading && (
+              <AnalysisCard result={queryResult} />
+            )}
+
+            {!queryResult && !queryLoading && (
+              <div className="analyze-placeholder">
+                <BrainCircuit size={48} className="placeholder-icon" />
+                <p>輸入台股代號，天網 AI 將整合技術指標與 4 位專家知識庫，產出完整戰報。</p>
+                <p className="placeholder-sub">分析結果同步傳送至 Telegram，並記錄至互動查詢紀錄。</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 狙擊清單 ── */}
+        {activeTab === 'sniper' && (
+          <div className="board-content">
+            <div className="board-heading">
+              <div className="heading-icon"><Crosshair size={24} /></div>
+              <div>
+                <h1>狙擊候選清單</h1>
+                <p>透過 /watch 加入的標的，天網-04 每 15 分鐘巡邏，突破時自動通知。</p>
+              </div>
+            </div>
+
+            {snipersLoading ? (
+              <LoadingState text="載入狙擊清單中..." />
+            ) : snipers.length === 0 ? (
+              <EmptyState
+                icon={<Crosshair size={32} />}
+                title="狙擊清單為空"
+                desc={'在 Telegram 發送 /watch 2330 或 /watch 2330 600 加入標的。'}
+              />
+            ) : (
+              <div className="sniper-table-wrap">
+                <table className="sniper-table">
+                  <thead>
+                    <tr>
+                      <th>代號</th>
+                      <th>名稱</th>
+                      <th>觸發價</th>
+                      <th>防守價</th>
+                      <th>現價</th>
+                      <th>距觸發</th>
+                      <th>狀態</th>
+                      <th>來源</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {snipers.map((s, i) => {
+                      const current = parseFloat(s.currentPrice || '0');
+                      const trigger = parseFloat(s.triggerPrice || '0');
+                      const distPct = trigger > 0 && current > 0
+                        ? (((trigger - current) / current) * 100).toFixed(1)
+                        : '--';
+                      const isTriggered = s.status === '已觸發';
+                      const isRetreated = s.status === '已撤退';
+                      return (
+                        <tr key={i} className={isTriggered ? 'row-triggered' : isRetreated ? 'row-retreated' : ''}>
+                          <td className="ticker-cell">
+                            <button
+                              onClick={() => openKLine(s.ticker)}
+                              className="ticker-cell-btn"
+                              title={`查看 ${s.ticker} K 線圖`}
+                            >
+                              {s.ticker}
+                            </button>
+                          </td>
+                          <td>{s.name}</td>
+                          <td className="price-cell">{s.triggerPrice || '--'}</td>
+                          <td className="price-cell stop">{s.stopPrice || '--'}</td>
+                          <td className="price-cell current">{s.currentPrice || '--'}</td>
+                          <td className={`dist-cell ${parseFloat(distPct) < 1 ? 'near' : ''}`}>
+                            {distPct !== '--' ? `${distPct}%` : '--'}
+                          </td>
+                          <td>
+                            <span className={`status-badge ${isTriggered ? 'triggered' : isRetreated ? 'retreated' : 'waiting'}`}>
+                              {s.status || '待觸發'}
+                            </span>
+                          </td>
+                          <td className="source-cell">{s.source || '--'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 大盤情報 ── */}
+        {activeTab === 'warroom' && (
+          <div className="board-content">
+            <div className="board-heading">
+              <div className="heading-icon"><Activity size={24} /></div>
+              <div>
+                <h1>大盤情報</h1>
+                <p>Alpha 每日 06:00 情報收集結果，含市場情緒與今日關注族群。</p>
+              </div>
+            </div>
+
+            {warRoomLoading ? (
+              <LoadingState text="載入大盤情報中..." />
+            ) : !warRoom ? (
+              <EmptyState
+                icon={<Activity size={32} />}
+                title="今日情報尚未更新"
+                desc="Alpha 工作流每日 06:00 自動執行，情報更新後顯示於此。"
+              />
+            ) : (
+              <div className="warroom-grid">
+                <div className="warroom-card bull-score">
+                  <p className="wc-label">市場多空分數</p>
+                  <div className="bull-bar-wrap">
+                    <div className="bull-bar" style={{ width: `${warRoom.bullScore}%` }} />
+                  </div>
+                  <p className="bull-value">{warRoom.bullScore} / 100</p>
+                </div>
+
+                <div className="warroom-card">
+                  <p className="wc-label">今日關注族群</p>
+                  <div className="tag-cloud">
+                    {(warRoom.focusTags || '').split(/[,，、]/).filter(Boolean).map((t, i) => (
+                      <span key={i} className="focus-tag">{t.trim()}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="warroom-card">
+                  <p className="wc-label">避開族群</p>
+                  <div className="tag-cloud">
+                    {(warRoom.avoidTags || '').split(/[,，、]/).filter(Boolean).map((t, i) => (
+                      <span key={i} className="avoid-tag">{t.trim()}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="warroom-card mentioned">
+                  <p className="wc-label">達人點名標的</p>
+                  <div className="mentioned-list">
+                    {(warRoom.mentionedStocks || []).map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setQueryTicker(s); setActiveTab('analyze'); }}
+                        className="mentioned-ticker"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="warroom-card summary">
+                  <p className="wc-label">今日市場摘要</p>
+                  <p className="wc-text">{warRoom.summary}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 策略設定（嵌入 iframe 或連結） ── */}
+        {activeTab === 'strategy' && (
+          <div className="board-content">
+            <div className="board-heading">
+              <div className="heading-icon"><ShieldCheck size={24} /></div>
+              <div>
+                <h1>策略設定</h1>
+                <p>調整選股門檻、分倉參數與風控條件，同步至天網雲端核心。</p>
+              </div>
+            </div>
+            <div className="strategy-redirect">
+              <Sparkles size={32} className="text-cyan" />
+              <p>策略設定功能請前往獨立頁面操作</p>
+              <a href="/strategy" className="strategy-link-btn">前往策略設定 →</a>
+            </div>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+// ── 子元件 ────────────────────────────────────────────
+
+function LoadingState({ text }: { text: string }) {
+  return (
+    <div className="loading-state">
+      <Loader2 size={28} className="animate-spin text-cyan" />
+      <p>{text}</p>
     </div>
   );
 }
 
-function StatCard({ icon, label, value, sub, trend, color }: any) {
-  const colors: any = {
-    cyan: 'text-cyan border-cyan/20',
-    green: 'text-green border-green/20',
-    red: 'text-red border-red/20',
-  };
-  
+function EmptyState({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
   return (
-    <div className={`glass-panel p-5 flex flex-col gap-1 border-l-4 ${colors[color]}`}>
-      <div className="flex justify-between items-start">
-        <span className="metric-label flex items-center gap-2">
-          {icon} {label}
-        </span>
-        {trend && (
-          <span className={`text-[9px] font-mono font-bold ${trend.startsWith('+') ? 'text-green' : 'text-red'}`}>
-            {trend}
-          </span>
-        )}
+    <div className="empty-state">
+      <div className="empty-icon">{icon}</div>
+      <p className="empty-title">{title}</p>
+      <p className="empty-desc">{desc}</p>
+    </div>
+  );
+}
+
+function BattleCard({ report, onAnalyze, onKLine }: { report: BattleReport; onAnalyze: (t: string) => void; onKLine: (t: string) => void }) {
+  const actionColor = report.action === 'BUY' ? 'buy' : report.action === 'SELL' ? 'sell' : 'wait';
+  return (
+    <article className="candidate-card">
+      <div className="card-head">
+        <div>
+          <p className="stock-code">{report.ticker}</p>
+          <h3>{report.name}</h3>
+        </div>
+        <span className={`action-badge ${actionColor}`}>{report.action}</span>
       </div>
-      <div className="flex items-baseline gap-2 mt-2">
-        <span className={`metric-value ${colors[color].split(' ')[0]}`}>{value}</span>
-        <span className="text-xs text-gray-500 font-bold">{sub}</span>
+      <div className="price-line">
+        <span>現價</span>
+        <strong>{report.price}</strong>
+        <em>信心 {report.confidence}%</em>
       </div>
+      <p className="verdict">{report.verdictTitle}</p>
+      <div className="price-targets">
+        <span>🎯 {report.target}{report.targetBasis ? ` (${report.targetBasis})` : ''}</span>
+        <span>🛡 {report.stopLoss}{report.stopBasis ? ` (${report.stopBasis})` : ''}</span>
+        <span>{report.strategyType}</span>
+        {report.maAlignment && <span>📊 {report.maAlignment}</span>}
+      </div>
+      <p className="plan">{report.todayView?.substring(0, 80)}...</p>
+      <div className="card-actions">
+        <button onClick={() => onAnalyze(report.ticker)}>重新分析</button>
+        <button onClick={() => onKLine(report.ticker)} className="kline-btn">查看 K 線</button>
+        <span>{report.date}</span>
+      </div>
+    </article>
+  );
+}
+
+function AnalysisCard({ result }: { result: AnalysisResult }) {
+  if (result.error) {
+    return (
+      <div className="analysis-error">
+        <AlertTriangle size={20} />
+        <p>{result.error}</p>
+      </div>
+    );
+  }
+
+  if (result.status === 'processing' || result.message) {
+    return (
+      <div className="analysis-processing">
+        <Loader2 size={20} className="animate-spin text-cyan" />
+        <div>
+          <p className="ap-title">{result.ticker} — 分析進行中</p>
+          <p className="ap-desc">{result.message}</p>
+          <p className="ap-hint">完整戰報已同步傳送至 Telegram，請查看 TG 回報。</p>
+        </div>
+      </div>
+    );
+  }
+
+  const actionColor = result.action === 'BUY' ? 'buy' : result.action === 'SELL' ? 'sell' : 'wait';
+
+  return (
+    <div className="analysis-card">
+      {/* 標頭 */}
+      <div className="ac-header">
+        <div>
+          <span className="ac-ticker">{result.ticker}</span>
+          <span className="ac-name">{result.name}</span>
+        </div>
+        <div className="ac-right">
+          <span className={`action-badge large ${actionColor}`}>{result.action || 'WAIT'}</span>
+          <span className="ac-price">NT$ {result.price}</span>
+        </div>
+      </div>
+
+      {/* 核心數據 */}
+      <div className="ac-metrics">
+        <div className="ac-metric">
+          <span>目標價</span>
+          <strong className="buy-color">{result.target || '--'}</strong>
+        </div>
+        <div className="ac-metric">
+          <span>防守價</span>
+          <strong className="sell-color">{result.stopLoss || '--'}</strong>
+        </div>
+        <div className="ac-metric">
+          <span>信心</span>
+          <strong>{result.confidence || '--'}%</strong>
+        </div>
+        <div className="ac-metric">
+          <span>動能</span>
+          <strong>{result.momentum || '--'}</strong>
+        </div>
+        <div className="ac-metric">
+          <span>策略</span>
+          <strong>{result.strategyType || '--'}</strong>
+        </div>
+      </div>
+
+      {/* 今日評定 */}
+      {result.verdictTitle && (
+        <div className="ac-verdict">
+          <p className="ac-section-label">📌 今日評定</p>
+          <p>{result.verdictTitle}</p>
+        </div>
+      )}
+
+      {/* 今日表現 */}
+      {result.todayView && (
+        <div className="ac-section">
+          <p className="ac-section-label">今日表現</p>
+          <p className="ac-text">{result.todayView}</p>
+        </div>
+      )}
+
+      {/* 專家分析 */}
+      {result.reason && (
+        <div className="ac-section expert">
+          <p className="ac-section-label">🧠 專家分析</p>
+          <p className="ac-text expert-text">{result.reason}</p>
+        </div>
+      )}
+
+      <p className="ac-disclaimer">人工判斷執行，天網只提供訊號與風險節奏。</p>
     </div>
   );
 }

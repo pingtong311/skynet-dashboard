@@ -19,11 +19,10 @@ export default function RootLayout({
     <html lang="zh-TW" className="h-full antialiased dark">
       <body className={`${inter.className} min-h-screen bg-background text-foreground selection:bg-cyan/30`}>
         <Navigation />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <main className="w-full">
           {children}
         </main>
       </body>
     </html>
   );
 }
-

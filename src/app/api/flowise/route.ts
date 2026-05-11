@@ -1,40 +1,53 @@
 import { NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+
+// Flowise 已停用，改為直接呼叫天網-03 → Omni
+const N8N_BASE = process.env.SKYNET_N8N_BASE_URL || 'https://skynet-cmd.duckdns.org';
+const TERMINAL_WEBHOOK = `${N8N_BASE}/webhook/skynet-terminal-sync-v1`;
+
 export async function POST(request: Request) {
   try {
     const { question } = await request.json();
-    
+
     if (!question) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
 
-    // Default Flowise URL from the Skynet architecture
-    const FLOWISE_URL = process.env.NEXT_PUBLIC_FLOWISE_URL || "https://flowise-production-4535.up.railway.app/api/v1/prediction/f2359e96-97bb-49a1-908f-35dfbff67273";
+    // 提取代號（如果問題包含股票代號）
+    const tickerMatch = question.match(/\b\d{4,6}\b/);
+    const command = tickerMatch ? tickerMatch[0] : question;
 
-    console.log('Asking Flowise:', question);
-    
-    const response = await fetch(FLOWISE_URL, {
+    const response = await fetch(TERMINAL_WEBHOOK, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ question }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        command,
+        chatId: 6375207034,
+        Source: 'Terminal',
+      }),
     });
 
     if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Flowise Error:', errorText);
-        throw new Error(`Flowise returned status: ${response.status}`);
+      throw new Error(`n8n returned status: ${response.status}`);
     }
 
-    const data = await response.json();
-    // Flowise typically returns JSON with a 'text' property
-    return NextResponse.json({ text: data.text || data.output || JSON.stringify(data) });
-    
+    const text = await response.text();
+    if (!text || text.trim() === '') {
+      return NextResponse.json({ text: '分析中，請稍後查看 Telegram 回報。' });
+    }
+
+    try {
+      const data = JSON.parse(text);
+      const message = data.message || data.text || data.Reason || JSON.stringify(data);
+      return NextResponse.json({ text: message });
+    } catch {
+      return NextResponse.json({ text });
+    }
   } catch (error) {
-    console.error('API Flowise Proxy Error:', error);
+    console.error('AI Query Error:', error);
     return NextResponse.json(
-      { error: 'Failed to communicate with Flowise AI Engine' },
+      { error: '天網 AI 分析服務暫時無法連線' },
       { status: 500 }
     );
   }

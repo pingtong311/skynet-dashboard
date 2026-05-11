@@ -8,6 +8,11 @@ export default function StrategyPage() {
     maxBias: 15,
     takeProfit: 5.0,
     stopLoss: 2.5,
+    gridAddDrop: 3.0,
+    gridTakeProfit: 4.0,
+    maxTranches: 10,
+    requireMacdAboveZero: true,
+    minVolumeRatio: 0.8,
     bbLength: 20,
     bbMult: 2.0,
     strategy: 'Skynet-Omni-V10',
@@ -110,7 +115,39 @@ export default function StrategyPage() {
 
             <div className="space-y-6">
               <h3 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-green">
-                <span className="w-4 h-[1px] bg-green"></span> 模擬盈虧目標
+                <span className="w-4 h-[1px] bg-green"></span> 分倉滾動模型
+              </h3>
+              <div className="space-y-4">
+                <InputGroup 
+                  label="跌幾 % 加碼一份" 
+                  value={config.gridAddDrop} 
+                  onChange={(v) => handleChange('gridAddDrop', v)} 
+                  unit="%"
+                  color="cyan"
+                  step={0.1}
+                />
+                <InputGroup 
+                  label="漲幾 % 回收一份" 
+                  value={config.gridTakeProfit} 
+                  onChange={(v) => handleChange('gridTakeProfit', v)} 
+                  unit="%"
+                  color="green"
+                  step={0.1}
+                />
+                <InputGroup 
+                  label="資金分倉份數" 
+                  value={config.maxTranches} 
+                  onChange={(v) => handleChange('maxTranches', v)} 
+                  unit="份"
+                  color="green"
+                  step={1}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <h3 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-red">
+                <span className="w-4 h-[1px] bg-red"></span> 風險防守
               </h3>
               <div className="space-y-4">
                 <InputGroup 
@@ -153,6 +190,13 @@ export default function StrategyPage() {
                   unit="x"
                   step={0.1}
                 />
+                <InputGroup 
+                  label="最低量比" 
+                  value={config.minVolumeRatio} 
+                  onChange={(v) => handleChange('minVolumeRatio', v)} 
+                  unit="x"
+                  step={0.1}
+                />
               </div>
             </div>
 
@@ -183,6 +227,18 @@ export default function StrategyPage() {
                     className={`w-12 h-6 rounded-full relative transition-all ${config.isDayTrading ? 'bg-cyan shadow-[0_0_10px_rgba(0,240,255,0.4)]' : 'bg-gray-800'}`}
                   >
                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${config.isDayTrading ? 'right-1' : 'left-1'}`}></div>
+                  </button>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-glass-border">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-white">MACD 0軸上方優先</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">分倉候選股需偏多趨勢，降低逆勢攤平</p>
+                  </div>
+                  <button 
+                    onClick={() => handleChange('requireMacdAboveZero', !config.requireMacdAboveZero)}
+                    className={`w-12 h-6 rounded-full relative transition-all ${config.requireMacdAboveZero ? 'bg-cyan shadow-[0_0_10px_rgba(0,240,255,0.4)]' : 'bg-gray-800'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${config.requireMacdAboveZero ? 'right-1' : 'left-1'}`}></div>
                   </button>
                 </div>
               </div>
@@ -254,6 +310,5 @@ function StrategyOption({ label, desc, selected, onClick }: { label: string, des
     </button>
   );
 }
-
 
 

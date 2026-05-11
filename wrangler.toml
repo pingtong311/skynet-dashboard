@@ -1,0 +1,7 @@
+# Cloudflare Pages 設定
+# 天網 Dashboard — skynet-dashboard
+
+name = "skynet-dashboard"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
