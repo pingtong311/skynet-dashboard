@@ -883,6 +883,90 @@ body {
 .status-badge.triggered { color: #5eead4; border-color: rgba(45,212,191,0.3);   background: rgba(20,184,166,0.12); }
 .status-badge.retreated { color: #fda4af; border-color: rgba(244,63,94,0.3);    background: rgba(244,63,94,0.1); }
 
+/* 新增狙擊表單 */
+.watch-form {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: rgba(15,23,42,0.6);
+  border: 1px solid rgba(148,163,184,0.12);
+  border-radius: 10px;
+}
+.watch-form-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.watch-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.watch-input-icon {
+  position: absolute;
+  left: 10px;
+  color: #64748b;
+  pointer-events: none;
+}
+.watch-input {
+  background: rgba(30,41,59,0.8);
+  border: 1px solid rgba(148,163,184,0.2);
+  border-radius: 8px;
+  color: #f0f2f5;
+  font-size: 13px;
+  padding: 8px 12px 8px 32px;
+  outline: none;
+  width: 160px;
+  transition: border-color 0.2s;
+}
+.watch-input:focus { border-color: rgba(0,240,255,0.4); }
+.watch-input::placeholder { color: #475569; }
+.watch-submit-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(0,240,255,0.12);
+  border: 1px solid rgba(0,240,255,0.3);
+  border-radius: 8px;
+  color: #00f0ff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.watch-submit-btn:hover:not(:disabled) { background: rgba(0,240,255,0.2); }
+.watch-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.watch-message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0.75rem;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.watch-message.success { color: #5eead4; background: rgba(20,184,166,0.1); }
+.watch-message.error   { color: #fda4af; background: rgba(244,63,94,0.1); }
+
+/* 撤退按鈕 */
+.retreat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(244,63,94,0.1);
+  border: 1px solid rgba(244,63,94,0.25);
+  border-radius: 6px;
+  color: #fda4af;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.retreat-btn:hover { background: rgba(244,63,94,0.2); }
+
 /* 大盤情報 */
 .warroom-grid {
   display: grid;

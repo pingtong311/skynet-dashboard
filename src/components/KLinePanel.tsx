@@ -17,6 +17,7 @@ import { motion } from 'framer-motion';
 import { X, Loader2, AlertTriangle, TrendingUp, Clock } from 'lucide-react';
 import CandlestickChart from './CandlestickChart';
 import { calculateSMA } from '@/lib/sma';
+import { calculateMACD, calculateKD, calculateBollingerBands } from '@/lib/indicators';
 import {
   isCacheValid,
   sliceCandles,
@@ -93,6 +94,28 @@ function injectSMA(candles: ChartCandle[]): ChartCandle[] {
   }));
 }
 
+function injectIndicators(candles: ChartCandle[]): ChartCandle[] {
+  const closes = candles.map((c) => c.close);
+  const highs = candles.map((c) => c.high);
+  const lows = candles.map((c) => c.low);
+
+  const macd = calculateMACD(closes);
+  const kd = calculateKD(highs, lows, closes);
+  const bb = calculateBollingerBands(closes);
+
+  return candles.map((c, i) => ({
+    ...c,
+    dif: macd.dif[i],
+    signal: macd.signal[i],
+    hist: macd.hist[i],
+    k: kd.k[i],
+    d: kd.d[i],
+    bbUpper: bb.upper[i],
+    bbMiddle: bb.middle[i],
+    bbLower: bb.lower[i],
+  }));
+}
+
 // ── QuoteBar 子元件 ────────────────────────────────────
 
 interface QuoteBarProps {
@@ -145,9 +168,11 @@ export function QuoteBar({ ticker, quote, loading }: QuoteBarProps) {
 interface KLinePanelProps {
   ticker: string;
   onClose: () => void;
+  target?: number;    // 目標價（來自 AnalysisCard）
+  stopLoss?: number;  // 防守價（來自 AnalysisCard）
 }
 
-export default function KLinePanel({ ticker, onClose }: KLinePanelProps) {
+export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLinePanelProps) {
   const [timeframe, setTimeframe] = useState<'daily' | 'intraday'>('daily');
   const [dailyCandles, setDailyCandles] = useState<ChartCandle[] | null>(null);
   const [intradayCandles, setIntradayCandles] = useState<ChartCandle[] | null>(null);
@@ -200,10 +225,11 @@ export default function KLinePanel({ ticker, onClose }: KLinePanelProps) {
       const chartCandles = (data.candles ?? []).map((c) => toChartCandle(c, false));
       const sliced = sliceCandles(chartCandles, MAX_DAILY_CANDLES);
       const withSMA = injectSMA(sliced);
+      const withIndicators = injectIndicators(withSMA);
 
       // 存入快取
-      dailyCache.current.set(t, { data: withSMA, timestamp: Date.now() });
-      setDailyCandles(withSMA);
+      dailyCache.current.set(t, { data: withIndicators, timestamp: Date.now() });
+      setDailyCandles(withIndicators);
     } catch (err) {
       if (signal.aborted) return;
       setError(getErrorMessage('network_error', t));
@@ -233,7 +259,9 @@ export default function KLinePanel({ ticker, onClose }: KLinePanelProps) {
 
       const chartCandles = (data.candles ?? []).map((c) => toChartCandle(c, true));
       const filtered = filterCompletedCandles(chartCandles, Date.now());
-      setIntradayCandles(filtered);
+      const withSMA = injectSMA(filtered);
+      const withIndicators = injectIndicators(withSMA);
+      setIntradayCandles(withIndicators);
     } catch (err) {
       if (signal.aborted) return;
       setError(getErrorMessage('network_error', t));
@@ -381,7 +409,7 @@ export default function KLinePanel({ ticker, onClose }: KLinePanelProps) {
 
         {/* K 線圖 */}
         {!loading && !error && displayCandles && displayCandles.length > 0 && (
-          <CandlestickChart candles={displayCandles} timeframe={timeframe} />
+          <CandlestickChart candles={displayCandles} timeframe={timeframe} target={target} stopLoss={stopLoss} />
         )}
 
         {/* 無資料 */}

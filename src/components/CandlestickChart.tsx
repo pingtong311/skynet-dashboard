@@ -3,7 +3,8 @@
 /**
  * 天網 K 線圖查看器 — CandlestickChart 元件
  *
- * 使用 recharts ComposedChart 渲染 K 線圖、SMA 均線、成交量子圖。
+ * 使用 recharts ComposedChart 渲染 K 線圖、SMA 均線、Bollinger Bands、
+ * 成交量子圖、MACD 子圖、KD 子圖，以及 Target / StopLoss 水平線。
  * 支援滑鼠滾輪縮放、拖曳平移、觸控雙指縮放與單指拖曳。
  */
 
@@ -18,6 +19,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  ReferenceLine,
 } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { ChartCandle } from '@/types/kline';
@@ -28,13 +30,11 @@ import { getCandleColor, clampZoom } from '@/lib/klineUtils';
 interface CandlestickChartProps {
   candles: ChartCandle[];
   timeframe: 'daily' | 'intraday';
+  target?: number;    // 目標價水平線
+  stopLoss?: number;  // 防守價水平線
 }
 
 // ── 自訂 Tooltip ───────────────────────────────────────
-
-interface KlineTooltipPayload {
-  payload?: ChartCandle;
-}
 
 function KlineTooltip({ active, payload }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
@@ -76,16 +76,8 @@ interface CandleShapeProps {
   y?: number;
   width?: number;
   height?: number;
-  // recharts 傳入的 payload
-  open?: number;
-  high?: number;
-  low?: number;
-  close?: number;
-  direction?: 'up' | 'down' | 'flat';
-  // recharts 內部用的 yAxis 比例函式
-  background?: { y: number; height: number };
-  // 完整 payload
   payload?: ChartCandle;
+  background?: { y: number; height: number };
 }
 
 function CandleShape(props: CandleShapeProps) {
@@ -103,28 +95,19 @@ function CandleShape(props: CandleShapeProps) {
   const color = getCandleColor(direction);
   const centerX = x + width / 2;
 
-  // 計算 high/low 在圖表座標系中的 y 位置
-  // recharts Bar 的 y 是實體頂部，height 是實體高度
-  // 我們需要根據 open/close/high/low 的比例計算影線位置
-  // 由於 recharts 已幫我們計算了 bodyLow 的 y 和 bodyHeight，
-  // 我們需要額外計算 high 和 low 的偏移
-
   const bodyTop = y;
   const bodyBottom = y + height;
 
-  // 計算每個價格單位對應的像素數
   const bodyRange = Math.abs(close - open);
   const pixelsPerUnit = bodyRange > 0 ? height / bodyRange : 0;
 
-  // 計算上影線頂部（high）的 y 座標
   const highY = bodyRange > 0
     ? bodyTop - (high - Math.max(open, close)) * pixelsPerUnit
-    : bodyTop - 2; // 平盤時給一個小影線
+    : bodyTop - 2;
 
-  // 計算下影線底部（low）的 y 座標
   const lowY = bodyRange > 0
     ? bodyBottom + (Math.min(open, close) - low) * pixelsPerUnit
-    : bodyBottom + 2; // 平盤時給一個小影線
+    : bodyBottom + 2;
 
   return (
     <g>
@@ -160,9 +143,36 @@ function CandleShape(props: CandleShapeProps) {
   );
 }
 
+// ── MACD Histogram Shape ───────────────────────────────
+
+interface HistShapeProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: ChartCandle;
+}
+
+function HistShape(props: HistShapeProps) {
+  const { x = 0, y = 0, width = 0, height = 0, payload } = props;
+  if (!payload || width <= 0) return null;
+  const hist = payload.hist;
+  if (hist == null) return null;
+  const color = hist >= 0 ? '#ef4444' : '#22c55e';
+  return (
+    <rect
+      x={x + 1}
+      y={y}
+      width={Math.max(width - 2, 1)}
+      height={Math.max(Math.abs(height), 1)}
+      fill={color}
+    />
+  );
+}
+
 // ── 主元件 ─────────────────────────────────────────────
 
-export default function CandlestickChart({ candles, timeframe }: CandlestickChartProps) {
+export default function CandlestickChart({ candles, timeframe, target, stopLoss }: CandlestickChartProps) {
   // 縮放與平移狀態
   const [visibleCount, setVisibleCount] = useState(() => Math.min(candles.length, 60));
   const [startIndex, setStartIndex] = useState(0);
@@ -191,7 +201,6 @@ export default function CandlestickChart({ candles, timeframe }: CandlestickChar
     const delta = e.deltaY > 0 ? 5 : -5;
     setVisibleCount((prev) => {
       const next = clampZoom(prev + delta);
-      // 調整 startIndex 使視窗右端固定
       setStartIndex((si) => {
         const maxStart = Math.max(0, candles.length - next);
         return Math.min(si, maxStart);
@@ -212,7 +221,6 @@ export default function CandlestickChart({ candles, timeframe }: CandlestickChar
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging.current) return;
     const dx = e.clientX - dragStartX.current;
-    // 每 8px 移動一根蠟燭
     const candleShift = Math.round(-dx / 8);
     const newStart = Math.max(
       0,
@@ -298,6 +306,12 @@ export default function CandlestickChart({ candles, timeframe }: CandlestickChar
   // 成交量 Y 軸範圍
   const maxVolume = Math.max(...visibleCandles.map((c) => c.volume), 1);
 
+  // MACD Y 軸範圍
+  const macdValues = visibleCandles.flatMap((c) => [c.dif, c.signal, c.hist]).filter((v): v is number => v != null);
+  const macdMin = macdValues.length ? Math.min(...macdValues) : -1;
+  const macdMax = macdValues.length ? Math.max(...macdValues) : 1;
+  const macdPad = (macdMax - macdMin) * 0.1 || 0.1;
+
   return (
     <div
       className="kline-chart-wrap"
@@ -311,7 +325,7 @@ export default function CandlestickChart({ candles, timeframe }: CandlestickChar
       onTouchEnd={handleTouchEnd}
       style={{ cursor: isDraggingState ? 'grabbing' : 'grab', userSelect: 'none' }}
     >
-      {/* 主圖（K 線 + SMA） */}
+      {/* 主圖（K 線 + SMA + Bollinger Bands + 水平線）68% */}
       <div style={{ height: '68%' }}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
@@ -336,7 +350,39 @@ export default function CandlestickChart({ candles, timeframe }: CandlestickChar
             />
             <Tooltip content={<KlineTooltip />} />
 
-            {/* 蠟燭實體（使用 bodyLow 作為基準，bodyHeight 作為高度） */}
+            {/* Bollinger Bands */}
+            <Line
+              type="monotone"
+              dataKey="bbUpper"
+              stroke="rgba(59,130,246,0.5)"
+              strokeWidth={1}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              name="BB Upper"
+            />
+            <Line
+              type="monotone"
+              dataKey="bbMiddle"
+              stroke="rgba(148,163,184,0.6)"
+              strokeWidth={1}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              name="BB Middle"
+            />
+            <Line
+              type="monotone"
+              dataKey="bbLower"
+              stroke="rgba(59,130,246,0.5)"
+              strokeWidth={1}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              name="BB Lower"
+            />
+
+            {/* 蠟燭實體 */}
             <Bar
               dataKey="bodyHeight"
               minPointSize={1}
@@ -392,12 +438,32 @@ export default function CandlestickChart({ candles, timeframe }: CandlestickChar
               isAnimationActive={false}
               name="SMA60"
             />
+
+            {/* Target 水平線（綠色虛線） */}
+            {target != null && (
+              <ReferenceLine
+                y={target}
+                stroke="#22c55e"
+                strokeDasharray="4 2"
+                label={{ value: `目標 ${target}`, fill: '#22c55e', fontSize: 10, position: 'right' }}
+              />
+            )}
+
+            {/* StopLoss 水平線（紅色虛線） */}
+            {stopLoss != null && (
+              <ReferenceLine
+                y={stopLoss}
+                stroke="#ef4444"
+                strokeDasharray="4 2"
+                label={{ value: `防守 ${stopLoss}`, fill: '#ef4444', fontSize: 10, position: 'right' }}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      {/* 成交量子圖 */}
-      <div style={{ height: '28%', marginTop: '4px' }}>
+      {/* 成交量子圖 12% */}
+      <div style={{ height: '12%', marginTop: '2px' }}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={visibleCandles}
@@ -437,12 +503,131 @@ export default function CandlestickChart({ candles, timeframe }: CandlestickChar
         </ResponsiveContainer>
       </div>
 
-      {/* SMA 圖例 */}
+      {/* MACD 子圖 10% */}
+      <div style={{ height: '10%', marginTop: '2px' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={visibleCandles}
+            margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.05)" />
+            <XAxis
+              dataKey={xKey}
+              tick={false}
+              tickLine={false}
+              axisLine={{ stroke: 'rgba(148,163,184,0.1)' }}
+            />
+            <YAxis
+              domain={[macdMin - macdPad, macdMax + macdPad]}
+              tick={{ fill: '#64748b', fontSize: 9 }}
+              tickLine={false}
+              axisLine={false}
+              width={56}
+              tickFormatter={(v: number) => v.toFixed(2)}
+            />
+            {/* HIST 柱狀圖（正值紅色、負值綠色） */}
+            <Bar
+              dataKey="hist"
+              isAnimationActive={false}
+              shape={<HistShape />}
+            >
+              {visibleCandles.map((entry, index) => (
+                <Cell
+                  key={`hist-${index}`}
+                  fill={(entry.hist ?? 0) >= 0 ? '#ef4444' : '#22c55e'}
+                />
+              ))}
+            </Bar>
+            {/* DIF 線 */}
+            <Line
+              type="monotone"
+              dataKey="dif"
+              stroke="#00f0ff"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              name="DIF"
+            />
+            {/* SIGNAL 線 */}
+            <Line
+              type="monotone"
+              dataKey="signal"
+              stroke="#f97316"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              name="SIGNAL"
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* KD 子圖 10% */}
+      <div style={{ height: '10%', marginTop: '2px' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={visibleCandles}
+            margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.05)" />
+            <XAxis
+              dataKey={xKey}
+              tick={false}
+              tickLine={false}
+              axisLine={{ stroke: 'rgba(148,163,184,0.1)' }}
+            />
+            <YAxis
+              domain={[0, 100]}
+              tick={{ fill: '#64748b', fontSize: 9 }}
+              tickLine={false}
+              axisLine={false}
+              width={56}
+              ticks={[0, 20, 50, 80, 100]}
+            />
+            {/* K 線（黃色） */}
+            <Line
+              type="monotone"
+              dataKey="k"
+              stroke="#eab308"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              name="K"
+            />
+            {/* D 線（橘色） */}
+            <Line
+              type="monotone"
+              dataKey="d"
+              stroke="#f97316"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              name="D"
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* 圖例區域 */}
       <div className="kline-legend">
+        {/* SMA */}
         <span style={{ color: '#eab308' }}>● SMA5</span>
         <span style={{ color: '#f97316' }}>● SMA10</span>
         <span style={{ color: '#a855f7' }}>● SMA20</span>
         <span style={{ color: '#3b82f6' }}>● SMA60</span>
+        {/* Bollinger Bands */}
+        <span style={{ color: 'rgba(59,130,246,0.8)' }}>● BB Upper</span>
+        <span style={{ color: 'rgba(59,130,246,0.8)' }}>● BB Lower</span>
+        {/* MACD */}
+        <span style={{ color: '#00f0ff' }}>● MACD DIF</span>
+        <span style={{ color: '#f97316' }}>● MACD SIG</span>
+        {/* KD */}
+        <span style={{ color: '#eab308' }}>● KD K</span>
+        <span style={{ color: '#f97316' }}>● KD D</span>
       </div>
     </div>
   );

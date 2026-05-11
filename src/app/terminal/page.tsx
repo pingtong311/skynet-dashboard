@@ -73,6 +73,95 @@ export default function TerminalPage() {
     try { sessionStorage.removeItem(SESSION_KEY); } catch {}
   };
 
+  const handleSubmitWithCommand = async (cmd: string) => {
+    if (!cmd.trim() || isLoading) return;
+    setInput(cmd);
+    // Use a small timeout to let React flush the state update before submitting
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    await handleSubmitCommand(cmd);
+  };
+
+  const handleSubmitCommand = async (cmd: string) => {
+    if (!cmd.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: cmd,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      let response;
+      let responseData;
+
+      if (cmd.endsWith('?')) {
+        response = await fetch('/api/flowise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: cmd }),
+        });
+        responseData = await response.json();
+      } else {
+        const res = await fetch('/api/terminal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            command: cmd,
+            chatId: 6375207034,
+            Source: 'Terminal'
+          }),
+        });
+
+        const data = await res.json();
+        const n8nResponse = Array.isArray(data) ? data[0] : data;
+        const responseText = n8nResponse?.message || n8nResponse?.text || '報告指揮官，任務執行完畢，但未回傳具體結果。';
+
+        const assistantMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: responseText,
+          timestamp: new Date().toISOString(),
+        };
+
+        if (!res.ok) {
+          throw new Error('伺服器連線失敗');
+        }
+
+        setMessages(prev => [...prev, assistantMsg]);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = responseData || {};
+        throw new Error(errorData.error || '伺服器連線失敗');
+      }
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: responseData.text || responseData.message || '指令執行成功。',
+        timestamp: new Date().toISOString(),
+        data: responseData.result || null,
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'system',
+        content: `⚠️ 錯誤: ${error instanceof Error ? error.message : '連線逾時，請檢查伺服器狀態。'}`,
+        timestamp: new Date().toISOString(),
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -195,7 +284,7 @@ export default function TerminalPage() {
                 if (qc.href) {
                   window.location.href = qc.href;
                 } else if (qc.cmd) {
-                  setInput(qc.cmd);
+                  handleSubmitWithCommand(qc.cmd);
                 }
               }}
               className="px-3 py-3 text-left text-[11px] font-bold glass-panel hover:border-cyan/50 hover:text-cyan hover:bg-cyan/5 transition-all group flex items-center justify-between"

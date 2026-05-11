@@ -40,6 +40,20 @@ export interface ChartCandle {
   sma10?: number | null;
   sma20?: number | null;
   sma60?: number | null;
+
+  // MACD（由 KLinePanel 計算後注入）
+  dif?: number | null;
+  signal?: number | null;
+  hist?: number | null;
+
+  // KD（由 KLinePanel 計算後注入）
+  k?: number | null;
+  d?: number | null;
+
+  // Bollinger Bands（由 KLinePanel 計算後注入）
+  bbUpper?: number | null;
+  bbMiddle?: number | null;
+  bbLower?: number | null;
 }
 
 // ── API 回應格式 ───────────────────────────────────────

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -13,6 +13,7 @@ import {
   Database,
   Grid3X3,
   LineChart,
+  Plus,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -22,8 +23,11 @@ import {
   Zap,
   AlertTriangle,
   Loader2,
+  LogOut,
 } from 'lucide-react';
 import KLinePanel from '@/components/KLinePanel';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useNotification } from '@/hooks/useNotification';
 
 // ── 型別定義 ──────────────────────────────────────────
 type BattleReport = {
@@ -117,10 +121,12 @@ export default function ReviewPage() {
   // 今日戰報
   const [reports, setReports] = useState<BattleReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const prevReportsCountRef = useRef<number>(0);
 
   // 狙擊清單
   const [snipers, setSnipers] = useState<SniperCandidate[]>([]);
   const [snipersLoading, setSnipersLoading] = useState(false);
+  const prevSnipersRef = useRef<SniperCandidate[]>([]);
 
   // 大盤情報
   const [warRoom, setWarRoom] = useState<WarRoomData | null>(null);
@@ -134,6 +140,20 @@ export default function ReviewPage() {
 
   // K 線圖面板
   const [klineTicker, setKlineTicker] = useState<string | null>(null);
+
+  // 新增狙擊表單
+  const [watchTicker, setWatchTicker] = useState('');
+  const [watchPrice, setWatchPrice] = useState('');
+  const [watchLoading, setWatchLoading] = useState(false);
+  const [watchMessage, setWatchMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // useNotification
+  const { permission, requestPermission, notifySniper, notifyNewReports } = useNotification();
+
+  // 首次載入時請求通知授權
+  useEffect(() => {
+    requestPermission();
+  }, [requestPermission]);
 
   // 時鐘
   useEffect(() => {
@@ -151,14 +171,23 @@ export default function ReviewPage() {
     try {
       const res = await fetch('/api/skynet/warroom?type=battle_reports');
       const data = await res.json();
-      if (data.reports) setReports(data.reports);
+      if (data.reports) {
+        const newReports: BattleReport[] = data.reports;
+        const prevCount = prevReportsCountRef.current;
+        const newCount = newReports.length;
+        if (prevCount > 0 && newCount > prevCount) {
+          notifyNewReports(newCount - prevCount);
+        }
+        prevReportsCountRef.current = newCount;
+        setReports(newReports);
+      }
     } catch (e) {
       console.error('Failed to fetch reports', e);
     } finally {
       setReportsLoading(false);
       setLastRefresh(new Date().toLocaleTimeString('zh-TW', { hour12: false }));
     }
-  }, []);
+  }, [notifyNewReports]);
 
   // 讀取狙擊清單
   const fetchSnipers = useCallback(async () => {
@@ -166,13 +195,27 @@ export default function ReviewPage() {
     try {
       const res = await fetch('/api/skynet/warroom?type=snipers');
       const data = await res.json();
-      if (data.snipers) setSnipers(data.snipers);
+      if (data.snipers) {
+        const newSnipers: SniperCandidate[] = data.snipers;
+        const prevSnipers = prevSnipersRef.current;
+        // 比對狀態變化：待觸發 → 已觸發
+        if (prevSnipers.length > 0) {
+          for (const newSniper of newSnipers) {
+            const prev = prevSnipers.find(p => p.ticker === newSniper.ticker);
+            if (prev && prev.status !== '已觸發' && newSniper.status === '已觸發') {
+              notifySniper(newSniper.ticker, newSniper.name, newSniper.triggerPrice);
+            }
+          }
+        }
+        prevSnipersRef.current = newSnipers;
+        setSnipers(newSnipers);
+      }
     } catch (e) {
       console.error('Failed to fetch snipers', e);
     } finally {
       setSnipersLoading(false);
     }
-  }, []);
+  }, [notifySniper]);
 
   // 讀取大盤情報
   const fetchWarRoom = useCallback(async () => {
@@ -187,6 +230,28 @@ export default function ReviewPage() {
       setWarRoomLoading(false);
     }
   }, []);
+
+  // useAutoRefresh：今日戰報（5 分鐘）
+  const {
+    countdown: overviewCountdown,
+    refresh: overviewRefresh,
+    isRefreshing: overviewRefreshing,
+  } = useAutoRefresh({
+    intervalMs: 5 * 60 * 1000,
+    onRefresh: fetchReports,
+    enabled: activeTab === 'overview',
+  });
+
+  // useAutoRefresh：狙擊清單（2 分鐘）
+  const {
+    countdown: sniperCountdown,
+    refresh: sniperRefresh,
+    isRefreshing: sniperRefreshing,
+  } = useAutoRefresh({
+    intervalMs: 2 * 60 * 1000,
+    onRefresh: fetchSnipers,
+    enabled: activeTab === 'sniper',
+  });
 
   // 切換 tab 時載入對應資料
   useEffect(() => {
@@ -224,10 +289,86 @@ export default function ReviewPage() {
     }
   };
 
+  // 手動刷新（呼叫 refresh() 重置計時器）
   const handleRefresh = () => {
-    if (activeTab === 'overview') fetchReports();
-    if (activeTab === 'sniper') fetchSnipers();
-    if (activeTab === 'warroom') fetchWarRoom();
+    if (activeTab === 'overview') overviewRefresh();
+    else if (activeTab === 'sniper') sniperRefresh();
+    else if (activeTab === 'warroom') fetchWarRoom();
+  };
+
+  // 新增狙擊提交
+  const handleAddWatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const ticker = watchTicker.trim();
+    if (!ticker || watchLoading) return;
+    if (!/^\d{4,6}$/.test(ticker)) {
+      setWatchMessage({ type: 'error', text: '股票代號格式錯誤，請輸入 4-6 位數字' });
+      return;
+    }
+    const priceStr = watchPrice.trim();
+    let triggerPrice: number | undefined;
+    if (priceStr !== '') {
+      const parsed = parseFloat(priceStr);
+      if (isNaN(parsed) || parsed <= 0) {
+        setWatchMessage({ type: 'error', text: '觸發價必須為正數' });
+        return;
+      }
+      triggerPrice = parsed;
+    }
+
+    setWatchLoading(true);
+    setWatchMessage(null);
+    try {
+      const res = await fetch('/api/skynet/watch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, triggerPrice, source: 'Dashboard' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        setWatchMessage({ type: 'success', text: `✅ ${ticker} 已加入狙擊清單` });
+        setWatchTicker('');
+        setWatchPrice('');
+        // 3 秒後自動刷新狙擊清單
+        setTimeout(() => {
+          fetchSnipers();
+          setWatchMessage(null);
+        }, 3000);
+      } else {
+        const errMap: Record<string, string> = {
+          invalid_ticker: '股票代號格式錯誤',
+          invalid_trigger_price: '觸發價格式錯誤',
+          upstream_error: 'n8n 服務暫時無法連線',
+          watch_timeout: '請求逾時，請稍後再試',
+        };
+        setWatchMessage({ type: 'error', text: errMap[data.error] || data.error || '新增失敗，請稍後再試' });
+      }
+    } catch {
+      setWatchMessage({ type: 'error', text: '網路錯誤，請稍後再試' });
+    } finally {
+      setWatchLoading(false);
+    }
+  };
+
+  // 撤退狙擊
+  const handleRetreat = async (ticker: string) => {
+    try {
+      const res = await fetch('/api/skynet/watch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, triggerPrice: 0, source: 'Dashboard_Retreat' }),
+      });
+      if (res.ok) {
+        // 立即在前端標記為已撤退
+        setSnipers(prev =>
+          prev.map(s => s.ticker === ticker ? { ...s, status: '已撤退' } : s)
+        );
+        // 3 秒後刷新清單
+        setTimeout(() => fetchSnipers(), 3000);
+      }
+    } catch (e) {
+      console.error('Failed to retreat sniper', e);
+    }
   };
 
   // K 線圖面板控制
@@ -239,6 +380,13 @@ export default function ReviewPage() {
   const closeKLine = useCallback(() => {
     setKlineTicker(null);
   }, []);
+
+  // 計算當前 countdown 顯示
+  const currentCountdown = activeTab === 'overview'
+    ? overviewCountdown
+    : activeTab === 'sniper'
+      ? sniperCountdown
+      : null;
 
   return (
     <main className="quant-shell">
@@ -297,12 +445,17 @@ export default function ReviewPage() {
             <span className="pill good"><CheckCircle2 size={15} /> API 已連接</span>
             <span className="pill good"><Activity size={15} /> 引擎運行中</span>
             <span className="pill muted"><Clock3 size={15} /> 台北 {now}</span>
+            {permission === 'granted' && (
+              <span className="pill good"><Bell size={15} /> 通知已啟用</span>
+            )}
           </div>
           <div className="operator-zone">
+            {currentCountdown !== null && (
+              <span className="pill muted"><Clock3 size={14} /> 下次刷新 {currentCountdown}s</span>
+            )}
             <button className="icon-button" onClick={handleRefresh} aria-label="刷新">
               <RefreshCw size={17} />
             </button>
-            <Bell size={17} className="text-slate-400" />
             <span className="operator">最後刷新 {lastRefresh}</span>
           </div>
         </header>
@@ -414,13 +567,59 @@ export default function ReviewPage() {
               </div>
             </div>
 
+            {/* 新增狙擊表單 */}
+            <form onSubmit={handleAddWatch} className="watch-form">
+              <div className="watch-form-row">
+                <div className="watch-input-wrap">
+                  <Crosshair size={16} className="watch-input-icon" />
+                  <input
+                    type="text"
+                    value={watchTicker}
+                    onChange={(e) => setWatchTicker(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="股票代號（4-6位）"
+                    className="watch-input"
+                    maxLength={6}
+                    disabled={watchLoading}
+                  />
+                </div>
+                <div className="watch-input-wrap">
+                  <Target size={16} className="watch-input-icon" />
+                  <input
+                    type="text"
+                    value={watchPrice}
+                    onChange={(e) => setWatchPrice(e.target.value.replace(/[^\d.]/g, ''))}
+                    placeholder="觸發價（選填）"
+                    className="watch-input"
+                    disabled={watchLoading}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={watchLoading || !watchTicker}
+                  className="watch-submit-btn"
+                >
+                  {watchLoading
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <Plus size={15} />}
+                  {watchLoading ? '新增中...' : '新增狙擊'}
+                </button>
+              </div>
+              {watchMessage && (
+                <div className={`watch-message ${watchMessage.type}`}>
+                  {watchMessage.type === 'error' && <AlertTriangle size={14} />}
+                  {watchMessage.type === 'success' && <CheckCircle2 size={14} />}
+                  <span>{watchMessage.text}</span>
+                </div>
+              )}
+            </form>
+
             {snipersLoading ? (
               <LoadingState text="載入狙擊清單中..." />
             ) : snipers.length === 0 ? (
               <EmptyState
                 icon={<Crosshair size={32} />}
                 title="狙擊清單為空"
-                desc={'在 Telegram 發送 /watch 2330 或 /watch 2330 600 加入標的。'}
+                desc={'在上方表單或 Telegram 發送 /watch 2330 加入標的。'}
               />
             ) : (
               <div className="sniper-table-wrap">
@@ -435,6 +634,7 @@ export default function ReviewPage() {
                       <th>距觸發</th>
                       <th>狀態</th>
                       <th>來源</th>
+                      <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -446,6 +646,7 @@ export default function ReviewPage() {
                         : '--';
                       const isTriggered = s.status === '已觸發';
                       const isRetreated = s.status === '已撤退';
+                      const isNear = distPct !== '--' && Math.abs(parseFloat(distPct)) < 1;
                       return (
                         <tr key={i} className={isTriggered ? 'row-triggered' : isRetreated ? 'row-retreated' : ''}>
                           <td className="ticker-cell">
@@ -461,7 +662,7 @@ export default function ReviewPage() {
                           <td className="price-cell">{s.triggerPrice || '--'}</td>
                           <td className="price-cell stop">{s.stopPrice || '--'}</td>
                           <td className="price-cell current">{s.currentPrice || '--'}</td>
-                          <td className={`dist-cell ${parseFloat(distPct) < 1 ? 'near' : ''}`}>
+                          <td className={`dist-cell ${isNear ? 'near' : ''}`}>
                             {distPct !== '--' ? `${distPct}%` : '--'}
                           </td>
                           <td>
@@ -470,6 +671,18 @@ export default function ReviewPage() {
                             </span>
                           </td>
                           <td className="source-cell">{s.source || '--'}</td>
+                          <td>
+                            {!isRetreated && (
+                              <button
+                                onClick={() => handleRetreat(s.ticker)}
+                                className="retreat-btn"
+                                title={`撤退 ${s.ticker}`}
+                              >
+                                <LogOut size={13} />
+                                撤退
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -628,6 +841,27 @@ function BattleCard({ report, onAnalyze, onKLine }: { report: BattleReport; onAn
 }
 
 function AnalysisCard({ result }: { result: AnalysisResult }) {
+  if (result.error === 'analysis_timeout') {
+    return (
+      <div className="analysis-error">
+        <AlertTriangle size={20} />
+        <div>
+          <p>分析逾時，請稍後再試</p>
+          <p className="ap-hint">天網 Omni 引擎處理時間較長，請稍候片刻後重新查詢。</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.error === 'upstream_error') {
+    return (
+      <div className="analysis-error">
+        <AlertTriangle size={20} />
+        <p>n8n 服務暫時無法連線</p>
+      </div>
+    );
+  }
+
   if (result.error) {
     return (
       <div className="analysis-error">
@@ -637,14 +871,14 @@ function AnalysisCard({ result }: { result: AnalysisResult }) {
     );
   }
 
-  if (result.status === 'processing' || result.message) {
+  // 非結構化回應：有 message 但沒有 action 欄位
+  if (result.message && !result.action) {
     return (
       <div className="analysis-processing">
-        <Loader2 size={20} className="animate-spin text-cyan" />
+        <Bot size={20} className="text-cyan" />
         <div>
-          <p className="ap-title">{result.ticker} — 分析進行中</p>
+          <p className="ap-title">{result.ticker} — 分析回應</p>
           <p className="ap-desc">{result.message}</p>
-          <p className="ap-hint">完整戰報已同步傳送至 Telegram，請查看 TG 回報。</p>
         </div>
       </div>
     );

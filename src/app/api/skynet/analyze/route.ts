@@ -4,14 +4,14 @@ export const runtime = 'edge';
 
 const N8N_BASE = process.env.SKYNET_N8N_BASE_URL || 'https://skynet-cmd.duckdns.org';
 const TERMINAL_WEBHOOK = `${N8N_BASE}/webhook/skynet-terminal-sync-v1`;
-const TIMEOUT_MS = 8000;
+const TIMEOUT_MS = 60000;
 
 export async function POST(request: Request) {
   try {
     const { ticker } = await request.json();
 
     if (!ticker || !/^\d{4,6}$/.test(ticker.trim())) {
-      return NextResponse.json({ error: '請輸入有效的台股代號（4-6位數字）' }, { status: 400 });
+      return NextResponse.json({ error: 'invalid_ticker' }, { status: 400 });
     }
 
     const cleanTicker = ticker.trim();
@@ -33,17 +33,13 @@ export async function POST(request: Request) {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`n8n returned ${response.status}`);
+        return NextResponse.json({ error: 'upstream_error' }, { status: 502 });
       }
 
       const text = await response.text();
 
       if (!text || text.trim() === '') {
-        return NextResponse.json({
-          ticker: cleanTicker,
-          status: 'processing',
-          message: `${cleanTicker} 分析中，完整戰報將推送至 Telegram（約 20-30 秒）。`,
-        });
+        return NextResponse.json({ error: 'upstream_error' }, { status: 502 });
       }
 
       try {
@@ -56,11 +52,10 @@ export async function POST(request: Request) {
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       if (fetchError.name === 'AbortError') {
-        return NextResponse.json({
-          ticker: cleanTicker,
-          status: 'processing',
-          message: `${cleanTicker} 分析中，完整戰報將推送至 Telegram（約 20-30 秒）。`,
-        });
+        return NextResponse.json(
+          { error: 'analysis_timeout', message: '分析逾時，請稍後再試' },
+          { status: 504 }
+        );
       }
       throw fetchError;
     }
@@ -68,7 +63,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Analyze API Error:', error);
     return NextResponse.json(
-      { error: '分析服務暫時無法連線，請稍後再試。' },
+      { error: 'internal_error' },
       { status: 500 }
     );
   }
