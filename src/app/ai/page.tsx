@@ -1,19 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+type InsightLog = {
+  time: string;
+  type: string;
+  msg: string;
+  isAlert?: boolean;
+};
 
 export default function AIPage() {
   const [mounted, setMounted] = useState(false);
-  const [logs, setLogs] = useState<{ time: string, type: string, msg: string, isAlert?: boolean }[]>([]);
+  const [logs, setLogs] = useState<InsightLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchLogs = async () => {
     try {
       const res = await fetch('/api/skynet/insights');
       const data = await res.json();
-      setLogs(data);
-    } catch (e) {
-      console.error('Failed to fetch logs', e);
+      setLogs(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to fetch logs', error);
     } finally {
       setIsLoading(false);
     }
@@ -21,94 +28,114 @@ export default function AIPage() {
 
   useEffect(() => {
     setMounted(true);
-    fetchLogs();
-    const interval = setInterval(fetchLogs, 30000); // Refresh every 30s
+    void fetchLogs();
+    const interval = setInterval(fetchLogs, 30_000);
     return () => clearInterval(interval);
   }, []);
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen pb-20">
-      
-      <div className="max-w-5xl mx-auto px-6 pt-12 animate-in fade-in duration-500">
-        <div className="mb-12">
-          <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">
-            Insight <span className="text-green">Matrix</span>
-          </h1>
-          <p className="text-xs text-gray-500 mt-1 tracking-widest uppercase font-bold">
-            AI 情報感知矩陣 / 實時思考日誌 (台股模擬版)
-          </p>
-        </div>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(31,102,209,0.08),_transparent_30%),linear-gradient(180deg,_#f8fbff_0%,_#eef4fb_48%,_#eef2f7_100%)] px-4 py-10 text-slate-900">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <header className="rounded-3xl border border-slate-200 bg-white px-6 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+          <p className="text-[10px] font-black tracking-[0.3em] text-[#1f66d1] uppercase">AI INSIGHT STREAM</p>
+          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-slate-950">情報感知矩陣</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+                這裡顯示天網對市場訊號的即時觀測日誌。介面已改成和戰情中心一致的白底工作區，方便你在同一套視覺下切換。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[10px] font-black tracking-[0.14em] uppercase">
+              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">
+                LIVE FEED
+              </span>
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">
+                30s REFRESH
+              </span>
+            </div>
+          </div>
+        </header>
 
-        <div className="glass-panel overflow-hidden">
-          <div className="bg-white/5 px-6 py-4 border-b border-glass-border flex justify-between items-center">
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="status-indicator status-online"></div>
-              <span className="text-[10px] font-bold tracking-[0.2em] text-gray-400 uppercase">AI Neural Processing Feed</span>
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_6px_rgba(16,185,129,0.12)]" />
+              <span className="text-[10px] font-black tracking-[0.22em] text-slate-500 uppercase">
+                AI Neural Processing Feed
+              </span>
             </div>
-            <span className="text-[10px] font-mono text-cyan bg-cyan/10 px-2 py-1 rounded border border-cyan/20">SYNCED WITH LOCAL_STORAGE</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-mono text-[10px] font-semibold tracking-[0.12em] text-slate-500">
+              SYNCED WITH LOCAL_STORAGE
+            </span>
           </div>
-          
-          <div className="p-8 h-[600px] overflow-y-auto space-y-6 font-mono scrollbar-hide">
-            {(() => {
-              if (isLoading) return (
-                <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50">
-                  <div className="w-8 h-8 border-2 border-cyan border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-[10px] tracking-widest uppercase font-bold">Connecting to Skynet Neural Link...</p>
-                </div>
-              );
-              
-              if (logs.length === 0) return (
-                <div className="flex items-center justify-center h-full text-gray-500 text-[10px] uppercase tracking-widest">
-                  No real-time insights available for current session.
-                </div>
-              );
 
-              return logs.map((log, i) => (
-                <div key={i} className={`flex gap-6 items-start group ${log.isAlert ? 'bg-cyan/5 -mx-4 px-4 py-3 rounded-xl border border-cyan/10' : ''}`}>
-                  <span className="text-[10px] opacity-30 shrink-0 mt-1 font-bold">{log.time}</span>
-                  <div className="flex flex-col gap-1">
-                    <span className={`text-[10px] font-black tracking-widest uppercase ${
-                      log.type === 'ALERT' ? 'text-red' : 
-                      log.type === 'THOUGHT' ? 'text-purple' : 
-                      log.type === 'SCAN' ? 'text-cyan' : 'text-green'
-                    }`}>
-                      [{log.type}]
-                    </span>
-                    <p className={`text-xs leading-relaxed transition-colors ${log.isAlert ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>
-                      {log.msg}
-                    </p>
-                  </div>
-                </div>
-              ));
-            })()}
-            
-            <div className="pt-8 border-t border-glass-border">
-              <div className="flex items-center gap-3 text-cyan animate-pulse">
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan"></div>
-                <span className="text-[10px] font-bold tracking-[0.3em] uppercase">System is analyzing real-time TSEC market data...</span>
+          <div className="h-[620px] overflow-y-auto px-6 py-6">
+            {isLoading ? (
+              <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 text-slate-500">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1f66d1] border-t-transparent" />
+                <p className="text-[10px] font-black tracking-[0.3em] uppercase">Connecting to Skynet Neural Link...</p>
               </div>
-            </div>
+            ) : logs.length === 0 ? (
+              <div className="flex h-full min-h-[320px] items-center justify-center text-[10px] font-black tracking-[0.22em] uppercase text-slate-500">
+                No real-time insights available for current session.
+              </div>
+            ) : (
+              <div className="space-y-4 font-mono">
+                {logs.map((log, index) => (
+                  <article
+                    key={`${log.time}-${index}`}
+                    className={`rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4 ${
+                      log.isAlert ? 'border-[#1f66d1]/20 bg-[#1f66d1]/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <span className="shrink-0 pt-0.5 text-[10px] font-bold text-slate-400">
+                        {log.time}
+                      </span>
+                      <div className="min-w-0">
+                        <span
+                          className={`text-[10px] font-black tracking-[0.22em] uppercase ${
+                            log.type === 'ALERT'
+                              ? 'text-rose-600'
+                              : log.type === 'THOUGHT'
+                                ? 'text-violet-600'
+                                : log.type === 'SCAN'
+                                  ? 'text-cyan-600'
+                                  : 'text-emerald-600'
+                          }`}
+                        >
+                          [{log.type}]
+                        </span>
+                        <p className={`mt-1 text-sm leading-7 ${log.isAlert ? 'text-slate-900' : 'text-slate-600'}`}>
+                          {log.msg}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        </section>
 
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <StatMini label="情緒指數量測" value="78 / 100" sub="市場偏向樂觀" />
           <StatMini label="異常量掃描" value="12 檔個股" sub="盤中集中在 AI 族群" />
           <StatMini label="平均延遲" value="14ms" sub="核心同步效率優化中" />
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
 
-function StatMini({ label, value, sub }: { label: string, value: string, sub: string }) {
+function StatMini({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="glass-panel p-6 border-white/5">
-      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{label}</p>
-      <p className="text-xl font-black text-white tracking-tighter">{value}</p>
-      <p className="text-[10px] text-gray-600 mt-1 italic">{sub}</p>
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+      <p className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{label}</p>
+      <p className="text-xl font-black tracking-tight text-slate-950">{value}</p>
+      <p className="mt-1 text-[10px] italic text-slate-500">{sub}</p>
     </div>
   );
 }

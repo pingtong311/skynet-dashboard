@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardMutation } from '@/lib/apiGuard';
 
 export const runtime = 'edge';
 
@@ -6,15 +7,38 @@ const N8N_BASE = process.env.SKYNET_N8N_BASE_URL || 'https://skynet-cmd.duckdns.
 const TERMINAL_WEBHOOK = `${N8N_BASE}/webhook/skynet-terminal-sync-v1`;
 const TIMEOUT_MS = 60000;
 
-export async function POST(request: Request) {
-  try {
-    const { ticker } = await request.json();
+type MarketPreset = 'TW' | 'HK' | 'US';
 
-    if (!ticker || !/^\d{4,6}$/.test(ticker.trim())) {
+function cleanTickerByMarket(ticker: string, market: MarketPreset): string | null {
+  const value = ticker.trim().toUpperCase();
+  if (market === 'TW') {
+    return /^\d{4,6}[A-Z]?$/.test(value) ? value : null;
+  }
+  if (market === 'HK') {
+    return /^\d{5}$/.test(value) ? value : null;
+  }
+  if (/^[A-Z0-9.\-]{1,10}$/.test(value)) return value;
+  return null;
+}
+
+export async function POST(request: Request) {
+  const guard = guardMutation(request, { endpoint: 'skynet:analyze', maxRequests: 10 });
+  if (guard) return guard;
+
+  try {
+    const body = await request.json();
+    const ticker = String(body?.ticker || '');
+    const market = (String(body?.market || 'TW').toUpperCase() as MarketPreset);
+
+    if (!['TW', 'HK', 'US'].includes(market)) {
+      return NextResponse.json({ error: 'invalid_market' }, { status: 400 });
+    }
+
+    const cleanTicker = cleanTickerByMarket(ticker, market);
+    if (!cleanTicker) {
       return NextResponse.json({ error: 'invalid_ticker' }, { status: 400 });
     }
 
-    const cleanTicker = ticker.trim();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -24,8 +48,9 @@ export async function POST(request: Request) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           command: cleanTicker,
+          market,
           chatId: 6375207034,
-          Source: 'Terminal',
+          Source: `Review-${market}`,
         }),
         signal: controller.signal,
       });
@@ -44,14 +69,36 @@ export async function POST(request: Request) {
 
       try {
         const data = JSON.parse(text);
-        return NextResponse.json(data);
+        return NextResponse.json({
+          ...data,
+          analysisMeta: {
+            source: 'n8n-terminal-sync-v1',
+            market,
+            responseKind: 'json',
+            receivedAt: new Date().toISOString(),
+            rawPreview: text.slice(0, 1200),
+            rawBody: text,
+          },
+        });
       } catch {
-        return NextResponse.json({ ticker: cleanTicker, message: text });
+        return NextResponse.json({
+          ticker: cleanTicker,
+          market,
+          message: text,
+          analysisMeta: {
+            source: 'n8n-terminal-sync-v1',
+            market,
+            responseKind: 'text',
+            receivedAt: new Date().toISOString(),
+            rawPreview: text.slice(0, 1200),
+            rawBody: text,
+          },
+        });
       }
 
-    } catch (fetchError: any) {
+    } catch (fetchError: unknown) {
       clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         return NextResponse.json(
           { error: 'analysis_timeout', message: '分析逾時，請稍後再試' },
           { status: 504 }

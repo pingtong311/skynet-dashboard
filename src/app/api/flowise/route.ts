@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardMutation } from '@/lib/apiGuard';
 
 export const runtime = 'edge';
 
@@ -7,6 +8,9 @@ const N8N_BASE = process.env.SKYNET_N8N_BASE_URL || 'https://skynet-cmd.duckdns.
 const TERMINAL_WEBHOOK = `${N8N_BASE}/webhook/skynet-terminal-sync-v1`;
 
 export async function POST(request: Request) {
+  const guard = guardMutation(request, { endpoint: 'flowise', maxRequests: 12 });
+  if (guard) return guard;
+
   try {
     const { question } = await request.json();
 

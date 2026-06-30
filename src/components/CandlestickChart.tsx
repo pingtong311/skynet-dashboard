@@ -21,7 +21,6 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts';
-import type { TooltipProps } from 'recharts';
 import type { ChartCandle } from '@/types/kline';
 import { getCandleColor, clampZoom } from '@/lib/klineUtils';
 
@@ -34,36 +33,49 @@ interface CandlestickChartProps {
   stopLoss?: number;  // 防守價水平線
 }
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
 // ── 自訂 Tooltip ───────────────────────────────────────
 
-function KlineTooltip({ active, payload }: TooltipProps<number, string>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function KlineTooltip({ active, payload }: { active?: boolean; payload?: any[] }) {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload as ChartCandle;
   if (!d) return null;
 
   const label = d.date || d.time || d.dateRaw || '';
-  const isValidNum = (v: unknown) => typeof v === 'number' && !isNaN(v);
+  const formatNum = (v: unknown, digits = 2) => {
+    const n = toFiniteNumber(v, NaN);
+    return Number.isFinite(n) ? n.toFixed(digits) : '--';
+  };
 
   return (
     <div className="kline-tooltip">
       <p className="kline-tooltip-date">{label}</p>
       <div className="kline-tooltip-row">
-        <span>開</span><span>{isValidNum(d.open) ? d.open.toFixed(2) : '--'}</span>
+        <span>開</span><span>{formatNum(d.open)}</span>
       </div>
       <div className="kline-tooltip-row">
-        <span>高</span><span>{isValidNum(d.high) ? d.high.toFixed(2) : '--'}</span>
+        <span>高</span><span>{formatNum(d.high)}</span>
       </div>
       <div className="kline-tooltip-row">
-        <span>低</span><span>{isValidNum(d.low) ? d.low.toFixed(2) : '--'}</span>
+        <span>低</span><span>{formatNum(d.low)}</span>
       </div>
       <div className="kline-tooltip-row">
         <span>收</span>
         <span style={{ color: getCandleColor(d.direction) }}>
-          {isValidNum(d.close) ? d.close.toFixed(2) : '--'}
+          {formatNum(d.close)}
         </span>
       </div>
       <div className="kline-tooltip-row">
-        <span>量</span><span>{isValidNum(d.volume) ? d.volume.toLocaleString() : '--'}</span>
+        <span>量</span><span>{Number.isFinite(toFiniteNumber(d.volume, NaN)) ? toFiniteNumber(d.volume, 0).toLocaleString() : '--'}</span>
       </div>
     </div>
   );
@@ -91,7 +103,11 @@ function CandleShape(props: CandleShapeProps) {
 
   if (!payload || width <= 0) return null;
 
-  const { open, high, low, close, direction } = payload;
+  const open = toFiniteNumber(payload.open);
+  const high = toFiniteNumber(payload.high, open);
+  const low = toFiniteNumber(payload.low, open);
+  const close = toFiniteNumber(payload.close, open);
+  const direction = payload.direction;
   const color = getCandleColor(direction);
   const centerX = x + width / 2;
 
@@ -346,7 +362,7 @@ export default function CandlestickChart({ candles, timeframe, target, stopLoss 
               tickLine={false}
               axisLine={false}
               width={56}
-              tickFormatter={(v: number) => v.toFixed(1)}
+              tickFormatter={(v: number) => Number.isFinite(v) ? v.toFixed(1) : '--'}
             />
             <Tooltip content={<KlineTooltip />} />
 
@@ -476,18 +492,20 @@ export default function CandlestickChart({ candles, timeframe, target, stopLoss 
               tickLine={false}
               axisLine={{ stroke: 'rgba(148,163,184,0.1)' }}
             />
-            <YAxis
-              domain={[0, maxVolume * 1.1]}
-              tick={{ fill: '#64748b', fontSize: 9 }}
-              tickLine={false}
-              axisLine={false}
-              width={56}
-              tickFormatter={(v: number) => {
-                if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-                if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
-                return String(v);
-              }}
-            />
+              <YAxis
+                domain={[0, maxVolume * 1.1]}
+                tick={{ fill: '#64748b', fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                width={56}
+                tickFormatter={(v: number) => {
+                const value = toFiniteNumber(v, NaN);
+                if (!Number.isFinite(value)) return '--';
+                if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+                if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+                return String(value);
+                }}
+              />
             <Bar
               dataKey="volume"
               isAnimationActive={false}
@@ -517,13 +535,13 @@ export default function CandlestickChart({ candles, timeframe, target, stopLoss 
               tickLine={false}
               axisLine={{ stroke: 'rgba(148,163,184,0.1)' }}
             />
-            <YAxis
+              <YAxis
               domain={[macdMin - macdPad, macdMax + macdPad]}
               tick={{ fill: '#64748b', fontSize: 9 }}
               tickLine={false}
               axisLine={false}
               width={56}
-              tickFormatter={(v: number) => v.toFixed(2)}
+              tickFormatter={(v: number) => Number.isFinite(v) ? v.toFixed(2) : '--'}
             />
             {/* HIST 柱狀圖（正值紅色、負值綠色） */}
             <Bar

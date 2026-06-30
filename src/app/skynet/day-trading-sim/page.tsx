@@ -1,14 +1,4 @@
-'use client';
-import { useState, useEffect } from 'react';
-
 export default function DayTradingSimulator() {
-  const [signals, setSignals] = useState<any[]>([]);
-
-  // Simulation: Fetching realtime updates or mock data
-  useEffect(() => {
-    // Initial fetch logic here
-  }, []);
-
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <header className="mb-8 border-b border-gray-800 pb-4">

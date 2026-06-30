@@ -16,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-TW" className="h-full antialiased dark">
-      <body className={`${inter.className} min-h-screen bg-background text-foreground selection:bg-cyan/30`}>
+    <html lang="zh-TW" className="h-full antialiased">
+      <body className={`${inter.className} min-h-screen bg-background text-foreground selection:bg-cyan/30 review-mode`} data-review-theme="light">
         <Navigation />
         <main className="w-full">
           {children}

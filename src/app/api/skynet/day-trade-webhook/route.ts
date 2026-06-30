@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
+import { guardMutation } from '@/lib/apiGuard';
 
 export const runtime = 'edge';
 
 export async function POST(request: Request) {
+  const guard = guardMutation(request, { endpoint: 'skynet:day-trade-webhook', maxRequests: 60 });
+  if (guard) return guard;
+
   try {
-    const payload = await request.json();
-    console.log('[Day Trading Webhook] Received:', payload);
+    await request.json();
     
     // In a real application, you might broadcast this to the frontend via WebSockets or save it
     // For now, we simulate receiving the high-frequency tick data

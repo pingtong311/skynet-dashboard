@@ -36,7 +36,24 @@ import type {
 
 // ── 常數 ───────────────────────────────────────────────
 
-const MAX_DAILY_CANDLES = 120;
+// 日期範圍選項（#9）
+type DateRange = '1W' | '1M' | '3M' | '6M';
+type MarketPreset = 'TW' | 'HK' | 'US';
+
+const DATE_RANGE_OPTIONS: { label: string; value: DateRange; days: number }[] = [
+  { label: '1W', value: '1W', days: 7 },
+  { label: '1M', value: '1M', days: 30 },
+  { label: '3M', value: '3M', days: 90 },
+  { label: '6M', value: '6M', days: 180 },
+];
+
+function getFromDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+const MAX_DAILY_CANDLES = 180; // 擴大上限以支援 6M
 
 const ERROR_MESSAGES: Record<string, string> = {
   api_key_not_configured:
@@ -53,27 +70,41 @@ function getErrorMessage(errorCode: string, ticker: string): string {
   return msg.replace('{ticker}', ticker);
 }
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
 // ── 資料轉換：API Candle → ChartCandle ────────────────
 
 function toChartCandle(
-  raw: { date?: string; time?: string; open: number; high: number; low: number; close: number; volume: number },
+  raw: { date?: string; time?: string; open: unknown; high: unknown; low: unknown; close: unknown; volume: unknown },
   isIntraday = false
 ): ChartCandle {
   const dateRaw = raw.date ?? raw.time ?? '';
-  const direction = getCandleDirection(raw.open, raw.close);
+  const open = toFiniteNumber(raw.open);
+  const high = toFiniteNumber(raw.high, open);
+  const low = toFiniteNumber(raw.low, open);
+  const close = toFiniteNumber(raw.close, open);
+  const volume = toFiniteNumber(raw.volume);
+  const direction = getCandleDirection(open, close);
 
   return {
     date: !isIntraday && raw.date ? formatDateLabel(raw.date) : undefined,
     time: isIntraday ? (raw.time ?? raw.date?.split('T')[1]?.substring(0, 5)) : undefined,
     dateRaw,
-    open: raw.open,
-    high: raw.high,
-    low: raw.low,
-    close: raw.close,
-    volume: raw.volume,
-    bodyLow: Math.min(raw.open, raw.close),
-    bodyHigh: Math.max(raw.open, raw.close),
-    bodyHeight: Math.abs(raw.close - raw.open),
+    open,
+    high,
+    low,
+    close,
+    volume,
+    bodyLow: Math.min(open, close),
+    bodyHigh: Math.max(open, close),
+    bodyHeight: Math.abs(close - open),
     direction,
   };
 }
@@ -125,14 +156,17 @@ interface QuoteBarProps {
 }
 
 export function QuoteBar({ ticker, quote, loading }: QuoteBarProps) {
-  const displayPrice = quote?.price != null ? quote.price.toFixed(2) : '--';
-  const displayChange = quote
-    ? (quote.change >= 0 ? '+' : '') + quote.change.toFixed(2)
+  const price = toFiniteNumber(quote?.price, NaN);
+  const change = toFiniteNumber(quote?.change, NaN);
+  const changePercent = toFiniteNumber(quote?.changePercent, NaN);
+  const displayPrice = Number.isFinite(price) ? price.toFixed(2) : '--';
+  const displayChange = Number.isFinite(change)
+    ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}`
     : '--';
-  const displayChangePercent = quote
-    ? (quote.changePercent >= 0 ? '+' : '') + quote.changePercent.toFixed(2) + '%'
+  const displayChangePercent = Number.isFinite(changePercent)
+    ? `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`
     : '--';
-  const changeColor = quote ? getChangeColor(quote.changePercent) : '#94a3b8';
+  const changeColor = Number.isFinite(changePercent) ? getChangeColor(changePercent) : '#94a3b8';
 
   return (
     <div className="kline-quote-bar">
@@ -170,17 +204,19 @@ interface KLinePanelProps {
   onClose: () => void;
   target?: number;    // 目標價（來自 AnalysisCard）
   stopLoss?: number;  // 防守價（來自 AnalysisCard）
+  market?: MarketPreset;
 }
 
-export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLinePanelProps) {
+export default function KLinePanel({ ticker, onClose, target, stopLoss, market = 'TW' }: KLinePanelProps) {
   const [timeframe, setTimeframe] = useState<'daily' | 'intraday'>('daily');
+  const [dateRange, setDateRange] = useState<DateRange>('3M'); // #9 日期範圍
   const [dailyCandles, setDailyCandles] = useState<ChartCandle[] | null>(null);
   const [intradayCandles, setIntradayCandles] = useState<ChartCandle[] | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [quoteError, setQuoteError] = useState(false);
+  const [, setQuoteError] = useState(false);
 
   // 快取（Daily K，TTL 5 分鐘）
   const dailyCache = useRef<Map<string, CacheEntry>>(new Map());
@@ -195,12 +231,14 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
   );
   const taipeiMinute = now.getMinutes();
   const inTradingHours = isInTradingHours(taipeiHour, taipeiMinute);
+  const intradayAvailable = market === 'TW';
 
   // ── 取得 Daily K 資料 ────────────────────────────────
 
-  const fetchDaily = useCallback(async (t: string, signal: AbortSignal) => {
-    // 檢查快取
-    const cached = dailyCache.current.get(t);
+  const fetchDaily = useCallback(async (t: string, signal: AbortSignal, range: DateRange = '3M') => {
+    // 快取 key 包含 range
+    const cacheKey = `${t}_${range}`;
+    const cached = dailyCache.current.get(cacheKey);
     if (cached && isCacheValid(cached.timestamp, Date.now())) {
       setDailyCandles(cached.data);
       return;
@@ -210,7 +248,9 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
     setError(null);
 
     try {
-      const res = await fetch(`/api/skynet/kline?ticker=${t}&type=daily`, { signal });
+      const days = DATE_RANGE_OPTIONS.find(o => o.value === range)?.days ?? 90;
+      const from = getFromDate(days);
+      const res = await fetch(`/api/skynet/kline?ticker=${t}&market=${market}&type=daily&from=${from}`, { signal });
       if (signal.aborted) return;
 
       if (!res.ok) {
@@ -227,16 +267,16 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
       const withSMA = injectSMA(sliced);
       const withIndicators = injectIndicators(withSMA);
 
-      // 存入快取
-      dailyCache.current.set(t, { data: withIndicators, timestamp: Date.now() });
+      // 存入快取（含 range key）
+      dailyCache.current.set(cacheKey, { data: withIndicators, timestamp: Date.now() });
       setDailyCandles(withIndicators);
-    } catch (err) {
+    } catch {
       if (signal.aborted) return;
       setError(getErrorMessage('network_error', t));
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, []);
+  }, [market]);
 
   // ── 取得 Intraday K 資料 ─────────────────────────────
 
@@ -245,7 +285,7 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
     setError(null);
 
     try {
-      const res = await fetch(`/api/skynet/kline?ticker=${t}&type=intraday`, { signal });
+      const res = await fetch(`/api/skynet/kline?ticker=${t}&market=${market}&type=intraday`, { signal });
       if (signal.aborted) return;
 
       if (!res.ok) {
@@ -262,13 +302,13 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
       const withSMA = injectSMA(filtered);
       const withIndicators = injectIndicators(withSMA);
       setIntradayCandles(withIndicators);
-    } catch (err) {
+    } catch {
       if (signal.aborted) return;
       setError(getErrorMessage('network_error', t));
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, []);
+  }, [market]);
 
   // ── 取得 Quote 資料 ──────────────────────────────────
 
@@ -277,7 +317,7 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
     setQuoteError(false);
 
     try {
-      const res = await fetch(`/api/skynet/kline?ticker=${t}&type=quote`, { signal });
+      const res = await fetch(`/api/skynet/kline?ticker=${t}&market=${market}&type=quote`, { signal });
       if (signal.aborted) return;
 
       if (!res.ok) {
@@ -294,7 +334,7 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
     } finally {
       if (!signal.aborted) setQuoteLoading(false);
     }
-  }, []);
+  }, [market]);
 
   // ── 主要資料載入 Effect ──────────────────────────────
 
@@ -310,15 +350,36 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
     setQuote(null);
     setError(null);
     setTimeframe('daily');
+    setDateRange('3M');
 
     // 同時發出 daily + quote 請求
-    fetchDaily(ticker, controller.signal);
+    fetchDaily(ticker, controller.signal, '3M');
     fetchQuote(ticker, controller.signal);
 
     return () => {
       controller.abort();
     };
   }, [ticker, fetchDaily, fetchQuote]);
+
+  useEffect(() => {
+    if (!intradayAvailable && timeframe === 'intraday') {
+      setTimeframe('daily');
+    }
+  }, [intradayAvailable, timeframe]);
+
+  // ── 切換日期範圍（#9） ───────────────────────────────
+
+  const handleDateRangeChange = useCallback((range: DateRange) => {
+    if (range === dateRange) return;
+    setDateRange(range);
+    setDailyCandles(null);
+    setError(null);
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    fetchDaily(ticker, controller.signal, range);
+  }, [dateRange, ticker, fetchDaily]);
 
   // ── 切換 Timeframe ───────────────────────────────────
 
@@ -333,9 +394,7 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
       abortRef.current = controller;
       fetchIntraday(ticker, controller.signal);
     }
-  }, [timeframe, intradayCandles, ticker, fetchIntraday]);
-
-  // ── 決定顯示的資料 ───────────────────────────────────
+  }, [timeframe, intradayCandles, ticker, fetchIntraday]);  // ── 決定顯示的資料 ───────────────────────────────────
 
   const displayCandles = timeframe === 'daily' ? dailyCandles : intradayCandles;
 
@@ -354,6 +413,7 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
         <div className="kline-panel-title">
           <TrendingUp size={18} style={{ color: '#00f0ff' }} />
           <span>K 線圖</span>
+          {market !== 'TW' && <span className="kline-market-badge">{market}</span>}
         </div>
 
         {/* QuoteBar */}
@@ -368,12 +428,36 @@ export default function KLinePanel({ ticker, onClose, target, stopLoss }: KLineP
             日K
           </button>
           <button
-            className={`kline-tf-btn ${timeframe === 'intraday' ? 'active' : ''}`}
-            onClick={() => handleTimeframeChange('intraday')}
+            className={`kline-tf-btn ${timeframe === 'intraday' ? 'active' : ''} ${!intradayAvailable ? 'disabled' : ''}`}
+            onClick={() => intradayAvailable && handleTimeframeChange('intraday')}
+            disabled={!intradayAvailable}
+            title={intradayAvailable ? '切換到盤中分K' : '港股 / 美股目前僅提供日K與報價'}
           >
             分K（盤中）
           </button>
         </div>
+
+        {/* 日期範圍切換（#9，僅日K 顯示） */}
+        {timeframe === 'daily' && (
+          <div className="kline-daterange-toggle">
+            {DATE_RANGE_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                className={`kline-tf-btn ${dateRange === opt.value ? 'active' : ''}`}
+                onClick={() => handleDateRangeChange(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!intradayAvailable && (
+          <div className="kline-offhours-notice">
+            <Clock size={14} />
+            <span>目前為 {market} 模式，僅提供日K與即時報價</span>
+          </div>
+        )}
 
         {/* 關閉按鈕 */}
         <button className="kline-close-btn" onClick={onClose} aria-label="關閉 K 線圖">

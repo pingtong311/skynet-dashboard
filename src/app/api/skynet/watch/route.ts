@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardMutation } from '@/lib/apiGuard';
 
 export const runtime = 'edge';
 
@@ -7,6 +8,9 @@ const WATCH_WEBHOOK = `${N8N_BASE}/webhook/skynet-terminal-sync-v1`;
 const TIMEOUT_MS = 10000;
 
 export async function POST(request: Request) {
+  const guard = guardMutation(request, { endpoint: 'skynet:watch', maxRequests: 18 });
+  if (guard) return guard;
+
   try {
     const body = await request.json();
     const { ticker, triggerPrice, source } = body;
@@ -52,9 +56,9 @@ export async function POST(request: Request) {
       } catch {
         return NextResponse.json({ success: true, ticker: cleanTicker, message: text });
       }
-    } catch (fetchError: any) {
+    } catch (fetchError: unknown) {
       clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         return NextResponse.json({ error: 'watch_timeout' }, { status: 504 });
       }
       throw fetchError;

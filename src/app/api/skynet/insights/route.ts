@@ -5,6 +5,15 @@ export const runtime = 'edge';
 const N8N_BASE = process.env.SKYNET_N8N_BASE_URL || 'https://skynet-cmd.duckdns.org';
 const DASHBOARD_WEBHOOK = `${N8N_BASE}/webhook/skynet-dashboard`;
 
+type InsightSignal = {
+  time?: string;
+  action?: string;
+  ticker?: string;
+  name?: string;
+  strategy?: string;
+  reasoning?: string;
+};
+
 export async function GET() {
   try {
     const response = await fetch(DASHBOARD_WEBHOOK, {
@@ -19,7 +28,8 @@ export async function GET() {
 
     const data = await response.json();
 
-    const logs = (data.signals || []).map((s: any) => ({
+    const signals = Array.isArray(data.signals) ? data.signals as InsightSignal[] : [];
+    const logs = signals.map((s) => ({
       time: s.time || new Date().toLocaleTimeString('zh-TW', { hour12: false }),
       type: s.action === 'BUY' ? 'ALERT' : s.action === 'SELL' ? 'SCAN' : 'THOUGHT',
       msg: `[${s.ticker} ${s.name}] ${s.strategy}: ${s.reasoning}`,

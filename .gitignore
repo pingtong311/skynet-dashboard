@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# SkyNet runtime cache
+/.skynet-cache/
+
 # production
 /build
 

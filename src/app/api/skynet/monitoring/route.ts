@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardMutation, sanitizeUpstreamError } from '@/lib/apiGuard';
 
 export const runtime = 'edge';
 
@@ -10,7 +11,6 @@ export async function GET() {
     const response = await fetch(N8N_ENDPOINT, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
-      cache: 'no-store',
     });
 
     if (!response.ok) {
@@ -29,6 +29,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const guard = guardMutation(request, { endpoint: 'skynet:monitoring', maxRequests: 18 });
+  if (guard) return guard;
+
   try {
     const body = await request.json();
     const response = await fetch(N8N_ENDPOINT, {
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      throw new Error(`n8n responded with status: ${response.status}`);
+      return NextResponse.json(sanitizeUpstreamError(response.status), { status: 502 });
     }
 
     const data = await response.json();

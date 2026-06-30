@@ -1,4 +1,4 @@
-# Implementation Plan: Dashboard Web Upgrade
+Implementation Plan: Dashboard Web Upgrade
 
 ## Overview
 
@@ -10,7 +10,7 @@
 
 ### Phase B1：Analyze_API 同步回傳
 
-- [ ] 1. 修改 Analyze_API 為同步等待模式
+- [x] 1. 修改 Analyze_API 為同步等待模式
   - [x] 1.1 修改 `src/app/api/skynet/analyze/route.ts`：將 `TIMEOUT_MS` 從 `8000` 改為 `60000`，移除 `AbortError` 時回傳 `status: 'processing'` 的邏輯，改為回傳 HTTP 504 `{ error: "analysis_timeout", message: "分析逾時，請稍後再試" }`
     - 移除空回應時回傳 `processing` 狀態的分支，改為 HTTP 502 `{ error: "upstream_error" }`
     - n8n 非 200 回應改為 HTTP 502 `{ error: "upstream_error" }`
@@ -18,12 +18,12 @@
     - 保持 `export const runtime = 'edge'`
     - _Requirements: 1.1, 1.4, 1.5, 1.7_
 
-  - [ ]* 1.2 寫 property test：Analyze_API 不回傳 processing 狀態
+  - [x]* 1.2 寫 property test：Analyze_API 不回傳 processing 狀態
     - **Property 1：Analyze_API 不回傳 processing 狀態**
     - 使用 fast-check，對任意有效 ticker（4-6 位數字），當 n8n 回傳完整 JSON 時，回應不得含 `status: 'processing'`
     - **Validates: Requirements 1.1**
 
-  - [ ]* 1.3 寫 property test：完整戰報包含所有必要欄位
+  - [x]* 1.3 寫 property test：完整戰報包含所有必要欄位
     - **Property 2：完整戰報包含所有必要欄位**
     - 對任意合法 n8n 回應 JSON，輸出必須包含 `ticker`、`name`、`price`、`action`、`confidence`、`target`、`stopLoss`、`strategyType`、`momentum`、`verdictTitle`、`todayView`、`reason`
     - **Validates: Requirements 1.2**
@@ -35,7 +35,7 @@
     - 完整戰報 → 直接渲染 `AnalysisCard` 完整版（含 4 位專家分析、Target/StopLoss、技術快照）
     - _Requirements: 1.3, 1.4, 1.5_
 
-- [~] 3. Checkpoint B1 — 確認同步回傳正常運作
+- [x] 3. Checkpoint B1 — 確認同步回傳正常運作
   - 確保所有測試通過，確認 `analyze/route.ts` 不含 `processing` 回傳邏輯，詢問使用者是否有問題。
 
 ---
@@ -55,7 +55,7 @@
     - 輸入不足時對應位置回傳 `null`，不拋出例外
     - _Requirements: 2.1, 2.6, 2.7_
 
-  - [ ]* 4.3 寫 property test：MACD 輸出陣列長度與輸入相同
+  - [x]* 4.3 寫 property test：MACD 輸出陣列長度與輸入相同
     - **Property 3：MACD 輸出陣列長度一致性**
     - 對任意長度 ≥ 1 的 closes 陣列，`calculateMACD` 回傳的 `dif`、`signal`、`hist` 陣列長度必須與輸入相同
     - **Validates: Requirements 2.1, 2.7**
@@ -67,7 +67,7 @@
     - K/D 初始值為 50，使用平滑係數遞推
     - _Requirements: 2.2, 2.6, 2.7_
 
-  - [ ]* 4.5 寫 property test：KD 值域限制
+  - [x]* 4.5 寫 property test：KD 值域限制
     - **Property 4：KD 值域限制**
     - 對任意有效 OHLCV 資料（high ≥ low，close 在 [low, high] 範圍內），所有非 null K 值與 D 值必須在 [0, 100] 範圍內
     - **Validates: Requirements 2.2, 2.7**
@@ -78,12 +78,12 @@
     - 前 `period - 1` 個位置回傳 `null`
     - _Requirements: 2.4, 2.6, 2.7_
 
-  - [ ]* 4.7 寫 property test：Bollinger Bands 上軌 ≥ 中軌 ≥ 下軌
+  - [x]* 4.7 寫 property test：Bollinger Bands 上軌 ≥ 中軌 ≥ 下軌
     - **Property 5：Bollinger Bands 上中下軌順序**
     - 對任意長度 ≥ 20 的 closes 陣列，所有非 null 值必須滿足 `upper ≥ middle ≥ lower`
     - **Validates: Requirements 2.4**
 
-  - [ ]* 4.8 寫 property test：資料不足時指標回傳 null 而非拋出錯誤
+  - [x]* 4.8 寫 property test：資料不足時指標回傳 null 而非拋出錯誤
     - **Property 7：資料不足時指標回傳 null**
     - 對任意長度小於指標最小週期的輸入，`calculateMACD`、`calculateKD`、`calculateBollingerBands` 應回傳全為 null 的陣列，不得拋出例外
     - **Validates: Requirements 2.7**
@@ -121,7 +121,7 @@
     - 新增：MACD DIF / SIGNAL、KD K / D、BB Upper / Lower
     - _Requirements: 2.8_
 
-- [~] 7. Checkpoint B2 — 確認 K 線圖指標正常顯示
+- [x] 7. Checkpoint B2 — 確認 K 線圖指標正常顯示
   - 確保所有測試通過，確認四個子圖（主圖/成交量/MACD/KD）正常渲染，詢問使用者是否有問題。
 
 ---
@@ -139,7 +139,7 @@
     - n8n 非 200 → HTTP 502 `{ error: "upstream_error" }`
     - _Requirements: 3.3, 3.6, 3.7_
 
-  - [ ]* 8.2 寫 property test：Watch_API ticker 格式驗證
+  - [x]* 8.2 寫 property test：Watch_API ticker 格式驗證
     - **Property 8：Watch_API ticker 格式驗證**
     - 對任意不符合 4-6 位數字格式的字串（空字串、含字母、超過 6 位、少於 4 位），Watch_API 應回傳 HTTP 400
     - **Validates: Requirements 3.6**
@@ -156,7 +156,7 @@
     - 確認「距觸發百分比」計算公式正確：`((triggerPrice - currentPrice) / currentPrice) * 100`，距觸發 1% 以內以警示色標示
     - _Requirements: 3.8, 3.9_
 
-  - [ ]* 9.3 寫 property test：狙擊距觸發百分比計算正確性
+  - [x]* 9.3 寫 property test：狙擊距觸發百分比計算正確性
     - **Property 9：距觸發百分比計算正確性**
     - 對任意正數 `triggerPrice` 與 `currentPrice`，計算結果必須等於 `((triggerPrice - currentPrice) / currentPrice) * 100`，精確到小數點後一位
     - **Validates: Requirements 3.9**
@@ -167,7 +167,7 @@
     - 結果顯示在 Terminal 訊息串流中
     - _Requirements: 3.1_
 
-- [~] 11. Checkpoint B3 — 確認指揮中心功能正常
+- [x] 11. Checkpoint B3 — 確認指揮中心功能正常
   - 確保所有測試通過，確認 Watch_API 驗證邏輯、狙擊表單提交、快速指令直接執行均正常，詢問使用者是否有問題。
 
 ---
@@ -185,7 +185,7 @@
     - Page Visibility API 不支援時降級為持續計時
     - _Requirements: 4.1, 4.2, 4.7, 4.8, 4.9_
 
-  - [ ]* 12.2 寫 property test：Page Visibility 暫停/恢復行為
+  - [x]* 12.2 寫 property test：Page Visibility 暫停/恢復行為
     - **Property 12：Page Visibility 暫停/恢復行為**
     - 對任意 visibility 狀態變化序列，hook 在 `hidden` 狀態時不得觸發刷新，在 `visible` 狀態時必須立即觸發一次刷新
     - **Validates: Requirements 4.7**
@@ -200,12 +200,12 @@
     - `notifyNewReports(count)`：通知標題「📊 晨間戰報更新」，內容含新增數量
     - _Requirements: 4.3, 4.4, 4.5, 4.6_
 
-  - [ ]* 13.2 寫 property test：狙擊狀態變化觸發通知
+  - [x]* 13.2 寫 property test：狙擊狀態變化觸發通知
     - **Property 10：狙擊狀態變化觸發通知**
     - 對任意前後兩次狙擊清單，若任一標的狀態從「待觸發」變更為「已觸發」，通知函式必須被呼叫，且通知標題為「🎯 狙擊突破」
     - **Validates: Requirements 4.4**
 
-  - [ ]* 13.3 寫 property test：新增戰報觸發通知
+  - [x]* 13.3 寫 property test：新增戰報觸發通知
     - **Property 11：新增戰報觸發通知**
     - 對任意 `(oldCount, newCount)` 組合，若 `newCount > oldCount`，通知函式必須被呼叫，且通知標題為「📊 晨間戰報更新」
     - **Validates: Requirements 4.5**

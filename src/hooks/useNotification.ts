@@ -3,17 +3,20 @@ import { useCallback, useEffect, useState } from 'react';
 interface UseNotificationReturn {
   permission: NotificationPermission | 'unsupported';
   requestPermission: () => Promise<void>;
-  notifySniper: (ticker: string, name: string, triggerPrice: string) => void;
-  notifyNewReports: (count: number) => void;
+  notifySniper: (ticker: string, name: string, triggerPrice: string) => NotificationDispatchResult;
+  notifyNewReports: (count: number) => NotificationDispatchResult;
 }
 
+export type NotificationDispatchResult = {
+  ok: boolean;
+  channel: 'browser' | 'relay';
+  title: string;
+  body: string;
+  reason?: 'unsupported' | 'denied' | 'exception';
+};
+
 export function useNotification(): UseNotificationReturn {
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() => {
-    // SSR safety: check at init time only on client
-    if (typeof window === 'undefined') return 'unsupported';
-    if (!('Notification' in window)) return 'unsupported';
-    return Notification.permission;
-  });
+  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported');
 
   // Sync permission state if it changes externally (e.g. user revokes in browser settings)
   useEffect(() => {
@@ -39,36 +42,42 @@ export function useNotification(): UseNotificationReturn {
   }, []);
 
   const notifySniper = useCallback(
-    (ticker: string, name: string, triggerPrice: string): void => {
-      if (typeof window === 'undefined') return;
-      if (!('Notification' in window)) return;
-      if (permission !== 'granted') return;
+    (ticker: string, name: string, triggerPrice: string): NotificationDispatchResult => {
+      const title = '🎯 狙擊突破';
+      const body = `${ticker} ${name} 已突破觸發價 ${triggerPrice}`;
+      if (typeof window === 'undefined') return { ok: false, channel: 'browser', title, body, reason: 'unsupported' };
+      if (!('Notification' in window)) return { ok: false, channel: 'browser', title, body, reason: 'unsupported' };
+      if (permission !== 'granted') return { ok: false, channel: 'browser', title, body, reason: 'denied' };
 
       try {
-        new Notification('🎯 狙擊突破', {
-          body: `${ticker} ${name} 已突破觸發價 ${triggerPrice}`,
+        new Notification(title, {
+          body,
           icon: '/favicon.ico',
         });
+        return { ok: true, channel: 'browser', title, body };
       } catch {
-        // Silently ignore notification errors
+        return { ok: false, channel: 'browser', title, body, reason: 'exception' };
       }
     },
     [permission]
   );
 
   const notifyNewReports = useCallback(
-    (count: number): void => {
-      if (typeof window === 'undefined') return;
-      if (!('Notification' in window)) return;
-      if (permission !== 'granted') return;
+    (count: number): NotificationDispatchResult => {
+      const title = '📊 晨間戰報更新';
+      const body = `新增 ${count} 份戰報`;
+      if (typeof window === 'undefined') return { ok: false, channel: 'browser', title, body, reason: 'unsupported' };
+      if (!('Notification' in window)) return { ok: false, channel: 'browser', title, body, reason: 'unsupported' };
+      if (permission !== 'granted') return { ok: false, channel: 'browser', title, body, reason: 'denied' };
 
       try {
-        new Notification('📊 晨間戰報更新', {
-          body: `新增 ${count} 份戰報`,
+        new Notification(title, {
+          body,
           icon: '/favicon.ico',
         });
+        return { ok: true, channel: 'browser', title, body };
       } catch {
-        // Silently ignore notification errors
+        return { ok: false, channel: 'browser', title, body, reason: 'exception' };
       }
     },
     [permission]

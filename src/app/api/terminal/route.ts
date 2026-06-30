@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardMutation } from '@/lib/apiGuard';
 
 export const runtime = 'edge';
 
@@ -10,6 +11,9 @@ const ASYNC_MSG = (cmd: string) =>
   `⏳ 天網 AI 分析中...\n\n指令「${cmd}」已送達，Omni 引擎正在處理。\n\n📱 完整戰報將同步推送至 Telegram。\n💡 約 20-30 秒後可在 Telegram 查看結果。`;
 
 export async function POST(request: Request) {
+  const guard = guardMutation(request, { endpoint: 'terminal', maxRequests: 12 });
+  if (guard) return guard;
+
   try {
     const data = await request.json();
     const cmd = data.command || '';
@@ -52,9 +56,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: text, success: true });
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         return NextResponse.json({ message: ASYNC_MSG(cmd), success: true, async: true });
       }
       throw err;
